@@ -29,6 +29,11 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Configurar logging
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
+app.logger.setLevel(logging.INFO)
+
 def save_profile_photo(file):
     if file and file.filename:
         filename = secure_filename(file.filename)
@@ -52,7 +57,7 @@ def get_sessao():
             sessao = Session()
         return sessao
     except Exception as e:
-        print(f"Erro ao obter sessão: {e}")
+        app.logger.error(f"Erro ao obter sessão: {e}")
         sessao = Session()
         return sessao
 
@@ -62,7 +67,7 @@ def fechar_sessao():
         if sessao and sessao.is_active:
             sessao.close()
     except Exception as e:
-        print(f"Erro ao fechar sessão: {e}")
+        app.logger.error(f"Erro ao fechar sessão: {e}")
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
@@ -134,14 +139,14 @@ def index():
 
         # Garantir que haja pelo menos um membro no time
         if not time_repo.verificar_membros_existentes():
-            print("Criando membro padrão...")
+            app.logger.info("Criando membro padrão...")
             novo_membro = time_repo.criar_membro(
                 nome="Vendedor Padrão",
                 email="vendedor_padrao@empresa.com",
                 telefone="(11) 99999-9999"
             )
             if not novo_membro:
-                print("ERRO: Falha ao criar membro padrão")
+                app.logger.error("ERRO: Falha ao criar membro padrão")
 
         # Buscar dados para o dashboard
         total_leads = lead_repo.contar_total_leads()
@@ -178,14 +183,13 @@ def index():
             membro['vendas'] = lead_repo.contar_vendas_por_vendedor(membro['id'])
         
         # Log de depuração
-        print("\n--- DADOS DO DASHBOARD ---")
-        print(f"Total de Leads: {total_leads}")
-        print(f"Total de Vendas: {total_vendas}")
-        print(f"Leads não iniciados: {leads_nao_iniciados}")
-        print(f"Leads em andamento: {leads_em_andamento}")
-        print(f"Leads fechados: {leads_fechados}")
-        print(f"Total de Times: {total_times}")
-        print(f"Membros do Time: {len(membros_time)}")
+        app.logger.info(f"Total de Leads: {total_leads}")
+        app.logger.info(f"Total de Vendas: {total_vendas}")
+        app.logger.info(f"Leads não iniciados: {leads_nao_iniciados}")
+        app.logger.info(f"Leads em andamento: {leads_em_andamento}")
+        app.logger.info(f"Leads fechados: {leads_fechados}")
+        app.logger.info(f"Total de Times: {total_times}")
+        app.logger.info(f"Membros do Time: {len(membros_time)}")
         
         # Renderizar template
         return render_template(
@@ -203,8 +207,7 @@ def index():
     
     except Exception as e:
         # Log de erro detalhado
-        print("\n--- ERRO CRÍTICO NO DASHBOARD ---")
-        print(f"Erro: {e}")
+        app.logger.error(f"Erro no Dashboard: {e}")
         import traceback
         traceback.print_exc()
         
@@ -215,7 +218,7 @@ def index():
                 log_file.write("Rastreamento de pilha completo:\n")
                 log_file.write(traceback.format_exc())
         except Exception as log_error:
-            print(f"Erro ao salvar log: {log_error}")
+            app.logger.error(f"Erro ao salvar log: {log_error}")
         
         # Renderizar template com dados padrão
         flash('Erro ao carregar dados do dashboard. Verifique o log de erros.', 'danger')
@@ -275,8 +278,8 @@ def editar_membro(id):
         time_repo = TimeRepositorio(get_sessao())
         
         # Log de depuração
-        print(f"\n--- INÍCIO EDITAR MEMBRO ---")
-        print(f"ID do Membro: {id}")
+        app.logger.info(f"\n--- INÍCIO EDITAR MEMBRO ---")
+        app.logger.info(f"ID do Membro: {id}")
         
         if request.method == 'POST':
             # Capturar dados do formulário
@@ -285,10 +288,10 @@ def editar_membro(id):
             telefone = request.form.get('telefone')
             
             # Log de dados recebidos
-            print("Dados recebidos:")
-            print(f"Nome: {nome}")
-            print(f"Email: {email}")
-            print(f"Telefone: {telefone}")
+            app.logger.info("Dados recebidos:")
+            app.logger.info(f"Nome: {nome}")
+            app.logger.info(f"Email: {email}")
+            app.logger.info(f"Telefone: {telefone}")
             
             # Buscar membro atual para manter a foto existente
             membro_atual = time_repo.buscar_membro_por_id(id)
@@ -301,17 +304,17 @@ def editar_membro(id):
                     profile_photo = save_profile_photo(file)
             
             # Log da foto
-            print(f"Foto de perfil a ser salva: {profile_photo}")
+            app.logger.info(f"Foto de perfil a ser salva: {profile_photo}")
             
             # Atualizar membro
             resultado = time_repo.atualizar_membro(id, nome, email, telefone, profile_photo)
             
             # Log do resultado
             if resultado:
-                print("Membro atualizado com sucesso!")
+                app.logger.info("Membro atualizado com sucesso!")
                 flash('Membro atualizado com sucesso!', 'success')
             else:
-                print("ERRO: Falha ao atualizar membro")
+                app.logger.error("ERRO: Falha ao atualizar membro")
                 flash('Erro ao atualizar membro.', 'danger')
             
             return redirect(url_for('time'))
@@ -320,11 +323,11 @@ def editar_membro(id):
         membro = time_repo.buscar_membro_por_id(id)
         
         # Log de dados do membro
-        print("\nDados do Membro:")
-        print(f"Nome: {membro.nome if membro else 'Não encontrado'}")
-        print(f"Email: {membro.email if membro else 'Não encontrado'}")
-        print(f"Telefone: {membro.telefone if membro else 'Não encontrado'}")
-        print(f"Foto de Perfil: {membro.profile_photo if membro else 'Não encontrado'}")
+        app.logger.info("\nDados do Membro:")
+        app.logger.info(f"Nome: {membro.nome if membro else 'Não encontrado'}")
+        app.logger.info(f"Email: {membro.email if membro else 'Não encontrado'}")
+        app.logger.info(f"Telefone: {membro.telefone if membro else 'Não encontrado'}")
+        app.logger.info(f"Foto de Perfil: {membro.profile_photo if membro else 'Não encontrado'}")
         
         if not membro:
             flash('Membro não encontrado.', 'danger')
@@ -333,8 +336,8 @@ def editar_membro(id):
         return render_template('editar_membro.html', membro=membro)
     
     except Exception as e:
-        print(f"\n--- ERRO CRÍTICO em editar_membro ---")
-        print(f"Erro: {e}")
+        app.logger.error(f"\n--- ERRO CRÍTICO em editar_membro ---")
+        app.logger.error(f"Erro: {e}")
         import traceback
         traceback.print_exc()
         
@@ -354,8 +357,8 @@ def excluir_membro(id):
             return jsonify({'success': False, 'message': 'Não foi possível excluir o membro. Verifique se existem leads associados.'})
     
     except Exception as e:
-        print(f"\n--- ERRO CRÍTICO em excluir_membro ---")
-        print(f"Erro: {e}")
+        app.logger.error(f"\n--- ERRO CRÍTICO em excluir_membro ---")
+        app.logger.error(f"Erro: {e}")
         import traceback
         traceback.print_exc()
         
@@ -398,7 +401,7 @@ def kanban():
         
         return render_template('kanban.html', leads_por_estagio=leads_por_estagio, stages=estagios)
     except Exception as e:
-        print(f"Erro na rota kanban: {e}")
+        app.logger.error(f"Erro na rota kanban: {e}")
         flash('Erro ao carregar o quadro Kanban.', 'danger')
         return redirect(url_for('index'))
 
@@ -417,7 +420,7 @@ def atualizar_estagio_lead(lead_id):
         
         return jsonify({'success': True})
     except Exception as e:
-        print(f"Erro ao atualizar estágio do lead: {e}")
+        app.logger.error(f"Erro ao atualizar estágio do lead: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/novo-lead', methods=['GET', 'POST'])
@@ -452,7 +455,7 @@ def novo_lead():
             return redirect(url_for('kanban'))
             
         except Exception as e:
-            print(f"Erro ao criar lead: {e}")
+            app.logger.error(f"Erro ao criar lead: {e}")
             flash('Erro ao criar lead.', 'danger')
             return redirect(url_for('novo_lead'))
     
@@ -464,13 +467,47 @@ def novo_lead():
 @login_required
 def leads():
     try:
-        lead_repo = LeadRepositorio(get_sessao())
+        # Get the current session
+        sessao = get_sessao()
+        
+        # Create lead repository with the current session
+        lead_repo = LeadRepositorio(sessao)
+        
+        # List leads
         leads = lead_repo.listar_leads()
+        
+        # Se for uma requisição AJAX, retornar JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            leads_json = []
+            for lead in leads:
+                lead_dict = {
+                    'id': lead.id,
+                    'nome': lead.nome,
+                    'email': lead.email,
+                    'telefone': lead.telefone,
+                    'empresa': lead.empresa,
+                    'cargo': lead.cargo,
+                    'vendedor': {
+                        'nome': lead.vendedor.nome if lead.vendedor else None
+                    } if lead.vendedor else None,
+                    'estagio_atual': lead.estagio_atual,
+                    'data_criacao': lead.data_criacao.isoformat() if lead.data_criacao else None,
+                    'venda_fechada': lead.venda_fechada
+                }
+                leads_json.append(lead_dict)
+            return jsonify(leads_json)
+        
+        # Render template with leads
         return render_template('leads.html', leads=leads)
     except Exception as e:
-        print(f"Erro na rota leads: {e}")
+        app.logger.error(f"Erro na rota leads: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Se for AJAX, retornar erro JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'error': str(e)}), 500
+        
         flash('Erro ao carregar leads.', 'danger')
         return render_template('leads.html', leads=[])
 
@@ -496,9 +533,7 @@ def criar_lead():
             return redirect(url_for('leads'))
             
         except Exception as e:
-            print(f"Erro ao criar lead: {e}")
-            import traceback
-            traceback.print_exc()
+            app.logger.error(f"Erro ao criar lead: {e}")
             flash('Erro ao criar lead.', 'danger')
             return redirect(url_for('leads'))
     
@@ -517,7 +552,9 @@ def editar_lead(lead_id):
             # Processar venda_fechada como booleano
             venda_fechada = 'venda_fechada' in request.form
             
+            # Coletar TODOS os campos do formulário
             dados_lead = {
+                # Campos básicos
                 'nome': request.form.get('nome'),
                 'email': request.form.get('email'),
                 'telefone': request.form.get('telefone'),
@@ -527,20 +564,37 @@ def editar_lead(lead_id):
                 'vendedor_id': request.form.get('vendedor_id', type=int),
                 'venda_fechada': venda_fechada,
                 'observacoes': request.form.get('observacoes', ''),
-                'data_venda': request.form.get('data_venda') if venda_fechada else None
+                
+                # Campos de contato adicionais
+                'contato_01': request.form.get('contato_01'),
+                'contato_02': request.form.get('contato_02'),
+                'cidade': request.form.get('cidade'),
+                'estado': request.form.get('estado'),
+                
+                # Emails adicionais
+                'email_comercial': request.form.get('email_comercial'),
+                'email_comercial_02': request.form.get('email_comercial_02'),
+                'email_comercial_03': request.form.get('email_comercial_03'),
+                'email_financeiro': request.form.get('email_financeiro'),
+                
+                # Telefone comercial
+                'telefone_comercial': request.form.get('telefone_comercial')
             }
             
-            # Log de depuração
-            print("\n--- DADOS RECEBIDOS PARA EDIÇÃO ---")
+            # Remover chaves com valor None
+            dados_lead = {k: v for k, v in dados_lead.items() if v is not None and v != ''}
+            
+            # Log de depuração detalhado
+            app.logger.info("\n--- DADOS RECEBIDOS PARA EDIÇÃO ---")
             for key, value in dados_lead.items():
-                print(f"{key}: {value}")
+                app.logger.info(f"{key}: {value}")
             
             lead_repo.editar_lead(lead_id, dados_lead)
             flash('Lead atualizado com sucesso!', 'success')
             return redirect(url_for('leads'))
             
         except Exception as e:
-            print(f"Erro ao atualizar lead: {e}")
+            app.logger.error(f"Erro ao atualizar lead: {e}")
             import traceback
             traceback.print_exc()
             flash('Erro ao atualizar lead.', 'danger')
@@ -566,9 +620,7 @@ def excluir_lead(lead_id):
         else:
             flash('Lead não encontrado.', 'danger')
     except Exception as e:
-        print(f"Erro ao excluir lead: {e}")
-        import traceback
-        traceback.print_exc()
+        app.logger.error(f"Erro ao excluir lead: {e}")
         flash('Erro ao excluir lead.', 'danger')
     
     return redirect(url_for('leads'))

@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Ocultar campo de busca padrão do DataTables */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-4">
     <!-- Breadcrumb -->
@@ -25,6 +36,10 @@
     <div class="card shadow mb-4" data-animation="animate__fadeInUp" data-delay="300">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Lista de Leads</h6>
+            <div class="input-group mt-2" style="max-width: 300px;">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="searchLead" class="form-control" placeholder="Pesquisar lead por nome...">
+            </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -45,36 +60,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for lead in leads %}
-                        <tr data-animation="animate__fadeIn" data-delay="{{ 400 + (loop.index * 100) }}">
-                            <td>{{ lead.id }}</td>
-                            <td>{{ lead.nome }}</td>
-                            <td>{{ lead.email }}</td>
-                            <td>{{ lead.telefone }}</td>
-                            <td>{{ lead.empresa }}</td>
-                            <td>{{ lead.cargo }}</td>
-                            <td>{{ lead.vendedor.nome if lead.vendedor else 'Não atribuído' }}</td>
-                            <td>{{ lead.estagio_atual }}</td>
-                            <td>{{ lead.data_criacao.strftime('%d/%m/%Y %H:%M') }}</td>
-                            <td>
-                                {% if lead.venda_fechada %}
-                                <span class="badge bg-success">Sim</span>
-                                {% else %}
-                                <span class="badge bg-warning">Não</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('editar_lead', lead_id=lead.id) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <button class="btn btn-sm btn-danger" onclick="excluirLead({{ lead.id }})">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
@@ -84,12 +69,85 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap5.min.js"></script>
+
 <script>
     $(document).ready(function() {
-        $('#dataTable').DataTable({
+        // Inicializar DataTable com otimizações de performance
+        var table = $('#dataTable').DataTable({
             "language": {
                 "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json"
-            }
+            },
+            "pageLength": 50,
+            "lengthChange": false,
+            "searching": true,
+            "processing": false,  // Desabilitar indicador de processamento
+            "deferRender": true,  // Renderizar linhas sob demanda
+            "scrollCollapse": true,
+            "scrollY": '50vh',  // Altura fixa da tabela
+            "scrollX": true,    // Habilitar rolagem horizontal
+            "columnDefs": [
+                { "width": "10%", "targets": [0, 1] },  // Definir larguras fixas para algumas colunas
+                { "orderable": false, "targets": -1 }   // Desabilitar ordenação na última coluna (Ações)
+            ],
+            "dom": 'lrtip',  // Remover campo de busca padrão
+            "ajax": {
+                "url": "{{ url_for('leads') }}",
+                "dataSrc": ""
+            },
+            "columns": [
+                { "data": "id" },
+                { "data": "nome" },
+                { "data": "email" },
+                { "data": "telefone" },
+                { "data": "empresa" },
+                { "data": "cargo" },
+                { 
+                    "data": "vendedor", 
+                    "render": function(data) {
+                        return data ? data.nome : 'Não atribuído';
+                    }
+                },
+                { "data": "estagio_atual" },
+                { 
+                    "data": "data_criacao",
+                    "render": function(data) {
+                        return new Date(data).toLocaleDateString('pt-BR');
+                    }
+                },
+                { 
+                    "data": "venda_fechada",
+                    "render": function(data) {
+                        return data ? 
+                            '<span class="badge bg-success">Sim</span>' : 
+                            '<span class="badge bg-warning">Não</span>';
+                    }
+                },
+                {
+                    "data": "id",
+                    "render": function(data) {
+                        return `
+                            <div class="btn-group" role="group">
+                                <a href="/leads/editar/${data}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button class="btn btn-sm btn-danger" onclick="excluirLead(${data})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            ]
+        });
+
+        // Personalizar pesquisa
+        $('#searchLead').on('keyup', function() {
+            table.search(this.value).draw();
         });
     });
 

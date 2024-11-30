@@ -26,15 +26,15 @@
                             <div class="card-body">
                                 <div class="mb-3">
                                     <label for="nome" class="form-label">Nome Completo*</label>
-                                    <input type="text" class="form-control" id="nome" name="nome" value="{{ lead.nome }}" required>
+                                    <input type="text" class="form-control" id="nome" name="nome" value="{{ lead.nome if lead.nome else '' }}" required>
                                 </div>
                                 <div class="mb-3">
                                     <label for="email" class="form-label">Email Principal*</label>
-                                    <input type="email" class="form-control" id="email" name="email" value="{{ lead.email }}" required>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ lead.email if lead.email else '' }}" required>
                                 </div>
                                 <div class="mb-3">
                                     <label for="telefone" class="form-label">Telefone Principal</label>
-                                    <input type="tel" class="form-control" id="telefone" name="telefone" value="{{ lead.telefone }}">
+                                    <input type="tel" class="form-control" id="telefone" name="telefone" value="{{ lead.telefone if lead.telefone else '' }}">
                                 </div>
                             </div>
                         </div>
@@ -49,23 +49,23 @@
                             <div class="card-body">
                                 <div class="mb-3">
                                     <label for="email_comercial" class="form-label">Email Comercial</label>
-                                    <input type="email" class="form-control" id="email_comercial" name="email_comercial" value="{{ lead.email_comercial }}">
+                                    <input type="email" class="form-control" id="email_comercial" name="email_comercial" value="{{ lead.email_comercial if lead.email_comercial else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="email_comercial_02" class="form-label">Email Comercial 02</label>
-                                    <input type="email" class="form-control" id="email_comercial_02" name="email_comercial_02" value="{{ lead.email_comercial_02 }}">
+                                    <input type="email" class="form-control" id="email_comercial_02" name="email_comercial_02" value="{{ lead.email_comercial_02 if lead.email_comercial_02 else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="email_comercial_03" class="form-label">Email Comercial 03</label>
-                                    <input type="email" class="form-control" id="email_comercial_03" name="email_comercial_03" value="{{ lead.email_comercial_03 }}">
+                                    <input type="email" class="form-control" id="email_comercial_03" name="email_comercial_03" value="{{ lead.email_comercial_03 if lead.email_comercial_03 else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="email_financeiro" class="form-label">Email Financeiro</label>
-                                    <input type="email" class="form-control" id="email_financeiro" name="email_financeiro" value="{{ lead.email_financeiro }}">
+                                    <input type="email" class="form-control" id="email_financeiro" name="email_financeiro" value="{{ lead.email_financeiro if lead.email_financeiro else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="telefone_comercial" class="form-label">Telefone Comercial</label>
-                                    <input type="tel" class="form-control" id="telefone_comercial" name="telefone_comercial" value="{{ lead.telefone_comercial }}">
+                                    <input type="tel" class="form-control" id="telefone_comercial" name="telefone_comercial" value="{{ lead.telefone_comercial if lead.telefone_comercial else '' }}">
                                 </div>
                             </div>
                         </div>
@@ -80,7 +80,7 @@
                             <div class="card-body">
                                 <div class="mb-3">
                                     <label for="cidade" class="form-label">Cidade</label>
-                                    <input type="text" class="form-control" id="cidade" name="cidade" value="{{ lead.cidade }}">
+                                    <input type="text" class="form-control" id="cidade" name="cidade" value="{{ lead.cidade if lead.cidade else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="estado" class="form-label">Estado</label>
@@ -117,11 +117,11 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="empresa" class="form-label">Empresa</label>
-                                    <input type="text" class="form-control" id="empresa" name="empresa" value="{{ lead.empresa }}">
+                                    <input type="text" class="form-control" id="empresa" name="empresa" value="{{ lead.empresa if lead.empresa else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="cargo" class="form-label">Cargo</label>
-                                    <input type="text" class="form-control" id="cargo" name="cargo" value="{{ lead.cargo }}">
+                                    <input type="text" class="form-control" id="cargo" name="cargo" value="{{ lead.cargo if lead.cargo else '' }}">
                                 </div>
                             </div>
                         </div>
@@ -138,15 +138,15 @@
                             <div class="card-body">
                                 <div class="mb-3">
                                     <label for="contato_01" class="form-label">Contato 01</label>
-                                    <input type="text" class="form-control" id="contato_01" name="contato_01" value="{{ lead.contato_01 }}">
+                                    <input type="text" class="form-control" id="contato_01" name="contato_01" value="{{ lead.contato_01 if lead.contato_01 else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="contato_02" class="form-label">Contato 02</label>
-                                    <input type="text" class="form-control" id="contato_02" name="contato_02" value="{{ lead.contato_02 }}">
+                                    <input type="text" class="form-control" id="contato_02" name="contato_02" value="{{ lead.contato_02 if lead.contato_02 else '' }}">
                                 </div>
                                 <div class="mb-3">
                                     <label for="observacoes" class="form-label">Observações</label>
-                                    <textarea class="form-control" id="observacoes" name="observacoes" rows="4">{{ lead.observacoes }}</textarea>
+                                    <textarea class="form-control" id="observacoes" name="observacoes" rows="4">{{ lead.observacoes if lead.observacoes else '' }}</textarea>
                                 </div>
                             </div>
                         </div>

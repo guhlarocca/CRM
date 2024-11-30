@@ -82,24 +82,29 @@
 {% block extra_css %}
 <style>
     .kanban-board {
-        margin: 0 -0.25rem;
+        margin: 0 -0.15rem;
+        overflow-x: auto;
+        display: flex;
+        justify-content: flex-start;
     }
     .kanban-column {
         min-height: 30px;
-        max-height: calc(100vh - 150px);
+        max-height: calc(100vh - 180px);
         overflow-y: auto;
     }
     .col {
-        padding: 0 0.25rem;
-        flex-grow: 1;
-        flex-basis: 0;
+        padding: 0 0.15rem;
+        flex-grow: 0;
+        flex-basis: 250px;
+        max-width: 280px;
     }
     .lead-card {
         cursor: grab;
         transition: transform 0.15s;
         background-color: white;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         border: 1px solid rgba(0,0,0,.125);
+        margin-bottom: 0.25rem;
     }
     .lead-card:hover {
         transform: translateY(-1px);
@@ -111,11 +116,15 @@
     }
     .card-header {
         background-color: #f8f9fc;
-        padding: 0.5rem;
+        padding: 0.35rem;
     }
     .card-title {
-        font-size: 0.95rem;
-        line-height: 1.2;
+        font-size: 0.9rem;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+    .card-body {
+        padding: 0.5rem;
     }
     .kanban-board::-webkit-scrollbar, .kanban-column::-webkit-scrollbar {
         height: 4px;

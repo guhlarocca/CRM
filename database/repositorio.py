@@ -525,9 +525,16 @@ class LeadRepositorio:
             lead = self.sessao.query(Lead).filter(Lead.id == lead_id).first()
             if not lead:
                 raise ValueError(f"Lead com ID {lead_id} não encontrado")
+            
+            # Log detalhado de todos os campos ao buscar lead
+            print(f"\n--- DETALHES DO LEAD {lead_id} ---")
+            for column in lead.__table__.columns:
+                print(f"{column.name}: {getattr(lead, column.name)}")
+            
             return lead
         except Exception as e:
             self.sessao.rollback()
+            print(f"Erro ao buscar lead: {e}")
             raise e
 
     def obter_lead_por_email(self, email):
@@ -540,8 +547,15 @@ class LeadRepositorio:
             print(f"\n=== Listando Leads ===")
             print(f"Filtro de estágio: {estagio}")
             
+            # Verificar se a sessão está válida
+            if not self.sessao:
+                print("ERRO: Sessão do banco de dados não inicializada!")
+                return []
+            
             # Usar joinedload para carregar o relacionamento com vendedor
-            query = self.sessao.query(Lead).options(joinedload(Lead.vendedor))
+            query = self.sessao.query(Lead).options(
+                joinedload(Lead.vendedor)  # Garantir que o vendedor seja carregado
+            )
             
             if estagio:
                 query = query.filter(Lead.estagio_atual == estagio)
@@ -549,20 +563,32 @@ class LeadRepositorio:
             # Ordenar por ID decrescente (mais recentes primeiro)
             query = query.order_by(Lead.id.desc())
             
-            leads = query.all()
+            # Limitar o número de resultados para melhorar performance
+            query = query.limit(500)
             
-            print(f"Total de leads encontrados: {len(leads)}")
+            # Executar a query e capturar exceções
+            try:
+                leads = query.all()
+                
+                # Log detalhado de cada lead
+                print("\n--- DETALHES DOS LEADS ---")
+                for lead in leads:
+                    print(f"\nLead ID: {lead.id}")
+                    for column in lead.__table__.columns:
+                        valor = getattr(lead, column.name)
+                        print(f"{column.name}: {valor}")
+                
+                return leads
+            except Exception as query_error:
+                print(f"ERRO ao executar query de leads: {query_error}")
+                import traceback
+                traceback.print_exc()
+                return []
             
-            # Log detalhado dos leads
-            for lead in leads:
-                print(f"Lead ID: {lead.id}, Nome: {lead.nome}, Estágio: {lead.estagio_atual}")
-            
-            return leads
         except Exception as e:
-            print(f"Erro ao listar leads: {e}")
+            print(f"ERRO geral ao listar leads: {e}")
             import traceback
             traceback.print_exc()
-            self.sessao.rollback()
             return []
 
     def atualizar_lead(self, lead):
@@ -777,26 +803,37 @@ class LeadRepositorio:
 
     def editar_lead(self, lead_id, dados):
         try:
-            lead = self.sessao.query(Lead).get(lead_id)
-            if not lead:
-                raise ValueError("Lead não encontrado")
-            
-            # Debug dos dados recebidos
+            # Log inicial dos dados recebidos
             print("\n--- DADOS RECEBIDOS PARA EDIÇÃO ---")
             for key, value in dados.items():
                 print(f"{key}: {value}")
             
-            # Guardar o vendedor_id antigo para atualizar estatísticas
-            vendedor_id_antigo = lead.vendedor_id
+            lead = self.sessao.query(Lead).get(lead_id)
+            if not lead:
+                raise ValueError("Lead não encontrado")
             
-            # Processar venda_fechada corretamente
-            venda_fechada = dados.get('venda_fechada', lead.venda_fechada)
-            if isinstance(venda_fechada, str):
-                venda_fechada = venda_fechada.lower() == 'true'
-            else:
-                venda_fechada = bool(venda_fechada)
+            # Campos de contato
+            contato_campos = [
+                'contato_01', 
+                'contato_02', 
+                'cidade', 
+                'estado', 
+                'email_comercial', 
+                'email_comercial_02', 
+                'email_comercial_03', 
+                'email_financeiro', 
+                'telefone_comercial'
+            ]
             
-            # Atualiza campos existentes
+            # Atualizar campos de contato
+            for campo in contato_campos:
+                valor = dados.get(campo)
+                # Só atualiza se o valor for diferente de None
+                if valor is not None:
+                    setattr(lead, campo, valor)
+                    print(f"Atualizando {campo}: {valor}")
+            
+            # Outros campos padrão
             lead.nome = dados.get('nome', lead.nome)
             lead.email = dados.get('email', lead.email)
             lead.telefone = dados.get('telefone', lead.telefone)
@@ -806,43 +843,29 @@ class LeadRepositorio:
             lead.observacoes = dados.get('observacoes', lead.observacoes)
             lead.vendedor_id = dados.get('vendedor_id', lead.vendedor_id)
             
-            # Novos campos
-            lead.email_comercial = dados.get('email_comercial', lead.email_comercial)
-            lead.email_comercial_02 = dados.get('email_comercial_02', lead.email_comercial_02)
-            lead.email_comercial_03 = dados.get('email_comercial_03', lead.email_comercial_03)
-            lead.email_financeiro = dados.get('email_financeiro', lead.email_financeiro)
-            lead.telefone_comercial = dados.get('telefone_comercial', lead.telefone_comercial)
-            lead.cidade = dados.get('cidade', lead.cidade)
-            lead.estado = dados.get('estado', lead.estado)
-            lead.contato_01 = dados.get('contato_01', lead.contato_01)
-            lead.contato_02 = dados.get('contato_02', lead.contato_02)
-            
-            # Campos de venda
+            # Processar venda_fechada
+            venda_fechada = dados.get('venda_fechada', lead.venda_fechada)
+            if isinstance(venda_fechada, str):
+                venda_fechada = venda_fechada.lower() == 'true'
+            else:
+                venda_fechada = bool(venda_fechada)
             lead.venda_fechada = venda_fechada
-            if venda_fechada and not lead.data_venda:
-                lead.data_venda = datetime.now()
             
-            print(f"\nVenda Fechada após processamento: {lead.venda_fechada}")
-            print(f"Novo estágio: {lead.estagio_atual}")
-            
-            # Atualizar a última interação
+            # Atualizar última interação
             lead.ultima_interacao = datetime.now()
+            
+            # Log detalhado antes do commit
+            print("\n--- ESTADO FINAL DO LEAD ANTES DO COMMIT ---")
+            for column in lead.__table__.columns:
+                valor = getattr(lead, column.name)
+                print(f"{column.name}: {valor}")
             
             # Commit das alterações
             self.sessao.commit()
             
-            # Atualizar estatísticas dos vendedores
-            time_repo = TimeRepositorio(self.sessao)
-            
-            # Atualizar estatísticas do vendedor antigo se houver
-            if vendedor_id_antigo:
-                time_repo.atualizar_estatisticas(vendedor_id_antigo)
-            
-            # Atualizar estatísticas do novo vendedor se houver e for diferente do antigo
-            if lead.vendedor_id and lead.vendedor_id != vendedor_id_antigo:
-                time_repo.atualizar_estatisticas(lead.vendedor_id)
-            
+            print("\n--- LEAD EDITADO COM SUCESSO ---")
             return lead
+        
         except Exception as e:
             print(f"\nERRO ao editar lead: {e}")
             import traceback
