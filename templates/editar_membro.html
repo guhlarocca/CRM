@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Membro{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Editar Membro</h3>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('editar_membro', id=membro.id) }}" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="nome" class="form-label">Nome</label>
+                            <input type="text" class="form-control" id="nome" name="nome" value="{{ membro.nome }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ membro.email }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="telefone" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control" id="telefone" name="telefone" value="{{ membro.telefone }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="profile_photo" class="form-label">Foto de Perfil</label>
+                            <input type="file" class="form-control" id="profile_photo" name="profile_photo" accept="image/*">
+                            {% if membro.profile_photo %}
+                            <div class="mt-2">
+                                <img src="{{ url_for('static', filename='profile_photos/' + membro.profile_photo) }}" 
+                                     alt="Foto de Perfil" 
+                                     class="img-thumbnail" 
+                                     style="max-width: 200px;">
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                            <a href="{{ url_for('time') }}" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Máscara de telefone
+    const telefoneInput = document.getElementById('telefone');
+    telefoneInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length > 11) value = value.slice(0, 11);
+        
+        if (value.length <= 10) {
+            // Formato (XX) XXXX-XXXX
+            value = value.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+        } else {
+            // Formato (XX) XXXXX-XXXX
+            value = value.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+        }
+        
+        e.target.value = value;
+    });
+});
+</script>
+{% endblock %}

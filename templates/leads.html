@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Leads</li>
+        </ol>
+    </nav>
+
+    <!-- Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Leads Cadastrados</h2>
+            <p class="text-muted mb-0">Gerenciamento e acompanhamento de leads</p>
+        </div>
+        <a href="/leads/novo" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Novo Lead
+        </a>
+    </div>
+
+    <!-- Leads Card -->
+    <div class="card shadow mb-4" data-animation="animate__fadeInUp" data-delay="300">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Leads</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Empresa</th>
+                            <th>Cargo</th>
+                            <th>Vendedor</th>
+                            <th>Estágio</th>
+                            <th>Última Interação</th>
+                            <th>Venda Fechada</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in leads %}
+                        <tr data-animation="animate__fadeIn" data-delay="{{ 400 + (loop.index * 100) }}">
+                            <td>{{ lead.id }}</td>
+                            <td>{{ lead.nome }}</td>
+                            <td>{{ lead.email }}</td>
+                            <td>{{ lead.telefone }}</td>
+                            <td>{{ lead.empresa }}</td>
+                            <td>{{ lead.cargo }}</td>
+                            <td>{{ lead.vendedor.nome if lead.vendedor else 'Não atribuído' }}</td>
+                            <td>{{ lead.estagio_atual }}</td>
+                            <td>{{ lead.data_criacao.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if lead.venda_fechada %}
+                                <span class="badge bg-success">Sim</span>
+                                {% else %}
+                                <span class="badge bg-warning">Não</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('editar_lead', lead_id=lead.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-danger" onclick="excluirLead({{ lead.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#dataTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json"
+            }
+        });
+    });
+
+    function excluirLead(leadId) {
+        if (confirm('Tem certeza que deseja excluir este lead?')) {
+            window.location.href = `/leads/excluir/${leadId}`;
+        }
+    }
+</script>
+{% endblock %}

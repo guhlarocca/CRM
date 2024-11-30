@@ -1,0 +1,187 @@
+{% extends "base_new.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" data-animation="animate__fadeIn" data-delay="100">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+        </ol>
+    </nav>
+
+    <!-- Título -->
+    <div data-animation="animate__fadeInDown" data-delay="200">
+        <h2 class="mb-4">Resultados Gerais</h2>
+        <p class="text-muted">Leads e vendas em determinado período</p>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="row">
+        <!-- Card de Total de Leads -->
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2" data-animation="animate__fadeInLeft" data-delay="300">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total de Leads</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_leads }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card de Total de Vendas -->
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2" data-animation="animate__fadeInUp" data-delay="400">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total de Vendas</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_vendas }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card de Taxa de Conversão -->
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2" data-animation="animate__fadeInRight" data-delay="500">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Taxa de Conversão</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ "%.1f"|format(total_vendas / total_leads * 100) if total_leads > 0 else 0 }}%</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leads por Estágio -->
+    <div class="row">
+        {% for estagio, quantidade in leads_por_estagio.items() %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-{{ 'success' if 'Agendado' in estagio else 'primary' }} shadow h-100 py-2" 
+                 data-animation="animate__fadeInUp" 
+                 data-delay="{{ 600 + (loop.index * 100) }}">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-{{ 'success' if 'Agendado' in estagio else 'primary' }} text-uppercase mb-1">{{ estagio }}</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ quantidade }}</div>
+                        </div>
+                        <div class="col-auto">
+                            {% if estagio == 'Enviado Email' %}
+                            <i class="fas fa-paper-plane fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Sem retorno Email' %}
+                            <i class="fas fa-envelope-open fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Retorno Agendado' %}
+                            <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Linkedin' %}
+                            <i class="fab fa-linkedin fa-2x text-gray-300"></i>
+                            {% else %}
+                            <i class="fas fa-user fa-2x text-gray-300"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Desempenho da Equipe -->
+    <div class="card shadow mb-4" data-animation="animate__fadeInLeft" data-delay="900">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Desempenho da Equipe</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Total de Leads</th>
+                            <th>Total de Vendas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for membro in membros %}
+                        <tr data-animation="animate__fadeIn" data-delay="{{ 1000 + (loop.index * 100) }}">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if membro['profile_photo'] %}
+                                        <img src="{{ url_for('static', filename='profile_photos/' + membro['profile_photo']) }}" 
+                                             alt="{{ membro['nome'] }}"
+                                             class="rounded-circle" 
+                                             style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;">
+                                    {% else %}
+                                        <i class="fas fa-user-circle" style="font-size: 40px; margin-right: 12px; color: #6c757d;"></i>
+                                    {% endif %}
+                                    {{ membro['nome'] }}
+                                </div>
+                            </td>
+                            <td>{{ membro['leads'] }}</td>
+                            <td>{{ membro['vendas'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leads Recentes -->
+    <div class="card shadow mb-4" data-animation="animate__fadeInRight" data-delay="1000">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Leads Recentes</h6>
+            <a href="{{ url_for('listar_leads') }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-arrow-right"></i> Ver Todos
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Status</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in leads_recentes %}
+                        <tr>
+                            <td>{{ lead.nome }}</td>
+                            <td>{{ lead.email }}</td>
+                            <td>{{ lead.telefone }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if lead.status == 'Convertido' else 'primary' }}">
+                                    {{ lead.status }}
+                                </span>
+                            </td>
+                            <td>{{ lead.data_criacao.strftime('%d/%m/%Y') if lead.data_criacao else 'N/A' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

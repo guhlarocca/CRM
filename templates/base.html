@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CRM Vendas{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Animate.css -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #1a1c20;
+            --secondary-color: #292d33;
+            --accent-color: #00d9ff;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --hover-bg: rgba(0, 217, 255, 0.1);
+            --sidebar-width: 250px;
+            --sidebar-collapsed-width: 85px;
+            --border-radius: 14px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            height: calc(100vh - 40px);
+            width: var(--sidebar-width);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background-size: 200% 200%;
+            color: var(--text-primary);
+            transition: all 0.3s;
+            z-index: 1000;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .sidebar-logo {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .sidebar-logo h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 500;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .sidebar.collapsed .sidebar-logo h3 {
+            display: none;
+        }
+
+        .logo-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            transition: opacity 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 20px;
+            right: 10px;
+            background: var(--hover-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--accent-color);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .sidebar-toggle:hover {
+            background: var(--hover-bg);
+            transform: scale(1.1);
+        }
+
+        .sidebar-menu {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            height: calc(100% - 160px);
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s;
+            border-radius: 8px;
+            margin: 2px 8px;
+        }
+
+        .sidebar-menu a i {
+            font-size: 1.2rem;
+            min-width: 35px;
+            transition: all 0.3s;
+        }
+
+        .sidebar-menu a:hover {
+            background: var(--hover-bg);
+            color: var(--accent-color);
+        }
+
+        .sidebar-menu a.active {
+            background: var(--hover-bg);
+            color: var(--accent-color);
+        }
+
+        .sidebar.collapsed .sidebar-menu a {
+            padding: 12px;
+            margin: 2px 12px;
+            justify-content: center;
+        }
+
+        .sidebar.collapsed .sidebar-menu a i {
+            font-size: 1.3rem;
+            margin: 0;
+        }
+
+        .sidebar-menu a.text-danger:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .sidebar.collapsed .logo-text,
+        .sidebar.collapsed .sidebar-menu span,
+        .sidebar.collapsed .user-name {
+            display: none;
+        }
+
+        .user-info {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
+        }
+
+        .profile-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-color);
+            margin-bottom: 10px;
+        }
+
+        .user-details {
+            text-align: left;
+            padding-left: 10px;
+        }
+
+        .user-name {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 2px;
+            display: block;
+        }
+
+        .user-email {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .logout-btn {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+        }
+
+        /* Estilos para quando a sidebar está colapsada */
+        .sidebar.collapsed .user-details {
+            text-align: center;
+            padding-left: 0;
+        }
+
+        .sidebar.collapsed .profile-photo {
+            width: 45px;
+            height: 45px;
+            margin: 0 auto;
+        }
+
+        .sidebar.collapsed .user-name,
+        .sidebar.collapsed .user-email,
+        .sidebar.collapsed .logout-btn,
+        .sidebar.collapsed .user-details > div > div {
+            display: none;
+        }
+
+        .sidebar.collapsed .user-details > div {
+            justify-content: center;
+        }
+
+        .main-content {
+            margin-left: calc(var(--sidebar-width) + 40px);
+            padding: 20px;
+            min-height: 100vh;
+            transition: all 0.3s;
+        }
+
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+
+        .sidebar.collapsed + .main-content {
+            margin-left: calc(var(--sidebar-collapsed-width) + 40px);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                left: -var(--sidebar-width);
+            }
+            .sidebar.collapsed {
+                left: 20px;
+            }
+            .main-content {
+                margin-left: 20px;
+            }
+            .sidebar.collapsed + .main-content {
+                margin-left: calc(var(--sidebar-collapsed-width) + 40px);
+            }
+        }
+
+        /* Estilos para animações */
+        [data-animation] {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        [data-animation].animate__animated {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <h3 class="text-white">CRM Vendas</h3>
+            <button class="sidebar-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+        
+        <!-- Menu Principal -->
+        <div class="sidebar-menu">
+            <a href="/" class="{% if request.endpoint == 'index' %}active{% endif %}">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/leads" class="{% if request.endpoint == 'listar_leads' %}active{% endif %}">
+                <i class="fas fa-users"></i>
+                <span>Leads</span>
+            </a>
+            <a href="/kanban" class="{% if request.endpoint == 'kanban' %}active{% endif %}">
+                <i class="fas fa-columns"></i>
+                <span>Kanban</span>
+            </a>
+            <a href="/time" class="{% if request.endpoint == 'time' %}active{% endif %}">
+                <i class="fas fa-user-friends"></i>
+                <span>Time</span>
+            </a>
+            {% if session.is_admin %}
+            <a href="/config-empresa" class="{% if request.endpoint == 'config_empresa' %}active{% endif %}">
+                <i class="fas fa-cog"></i>
+                <span>Config. Empresa</span>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Informações do Usuário no Rodapé -->
+        <div class="user-info">
+            {% if session.user_name %}
+            <div class="user-details">
+                <div class="d-flex align-items-start">
+                    {% if session.profile_photo %}
+                        <img src="{{ url_for('static', filename='profile_photos/' + session.profile_photo) }}" 
+                             alt="{{ session.user_name }}" 
+                             class="profile-photo"
+                             onerror="this.src='{{ url_for('static', filename='profile_photos/default_profile.png') }}'">
+                    {% else %}
+                        <img src="{{ url_for('static', filename='profile_photos/default_profile.png') }}" 
+                             alt="{{ session.user_name }}" 
+                             class="profile-photo">
+                    {% endif %}
+                    <div class="ms-3">
+                        <span class="user-name">{{ session.user_name }}</span>
+                        <span class="user-email">{{ session.user_email }}</span>
+                        <a href="{{ url_for('logout') }}" class="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Sair</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Sidebar Toggle Script -->
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            // Salvar estado no localStorage
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
+
+        // Restaurar estado da sidebar ao carregar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+            }
+        });
+    </script>
+
+    <!-- Animation Observer Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const element = entry.target;
+                        const animation = element.getAttribute('data-animation');
+                        const delay = parseInt(element.getAttribute('data-delay')) || 0;
+                        
+                        setTimeout(() => {
+                            element.classList.add('animate__animated', animation);
+                        }, delay);
+                        
+                        observer.unobserve(element);
+                    }
+                });
+            }, { 
+                threshold: 0.1,
+                rootMargin: '50px'
+            });
+
+            document.querySelectorAll('[data-animation]').forEach(element => {
+                observer.observe(element);
+            });
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

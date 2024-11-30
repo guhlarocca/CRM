@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Meu Time</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Meu Time</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#novoMembroModal">
+            <i class="fas fa-plus"></i> Novo Vendedor
+        </button>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Lista de Vendedores -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Vendedores Cadastrados</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Foto</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Leads</th>
+                            <th>Vendas</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for membro in membros %}
+                        <tr data-membro-id="{{ membro['id'] }}">
+                            <td>{{ membro['id'] }}</td>
+                            <td>
+                                <img src="{{ url_for('static', filename='profile_photos/' + (membro['profile_photo'] or 'default_profile.png')) }}" 
+                                     class="rounded-circle" 
+                                     alt="{{ membro['nome'] }}"
+                                     style="width: 60px; height: 60px; object-fit: cover; border: 2px solid #e9ecef;">
+                            </td>
+                            <td>{{ membro['nome'] }}</td>
+                            <td>{{ membro['email'] }}</td>
+                            <td>{{ membro['telefone'] or '-' }}</td>
+                            <td>{{ membro['leads'] }}</td>
+                            <td>{{ membro['vendas'] }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="editarMembro({{ membro['id'] }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="excluirMembro({{ membro['id'] }})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo Membro -->
+    <div class="modal fade" id="novoMembroModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Novo Vendedor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('criar_membro') }}" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="profile_photo" class="form-label">Foto do Perfil</label>
+                            <input type="file" class="form-control" id="profile_photo" name="profile_photo" accept="image/*">
+                            <small class="text-muted">Selecione uma imagem para o perfil do vendedor</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="nome" class="form-label">Nome*</label>
+                            <input type="text" class="form-control" id="nome" name="nome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email*</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="telefone" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control" id="telefone" name="telefone" placeholder="(00) 00000-0000">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Membro -->
+    <div class="modal fade" id="editarMembroModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Vendedor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editarMembroForm" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-4">
+                            <label for="editProfilePhoto" class="form-label">Foto do Perfil</label>
+                            <div class="d-flex align-items-center gap-3 mb-2">
+                                <img id="currentProfilePhoto" src="" alt="Foto atual" 
+                                     class="rounded-circle" 
+                                     style="width: 64px; height: 64px; object-fit: cover; border: 2px solid #e9ecef;">
+                                <div>
+                                    <input type="file" class="form-control" id="editProfilePhoto" name="profile_photo" accept="image/*">
+                                    <small class="text-muted d-block mt-1">Deixe em branco para manter a foto atual</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editNome" class="form-label">Nome*</label>
+                            <input type="text" class="form-control" id="editNome" name="nome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editEmail" class="form-label">Email*</label>
+                            <input type="email" class="form-control" id="editEmail" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTelefone" class="form-label">Telefone</label>
+                            <input type="tel" class="form-control" id="editTelefone" name="telefone" placeholder="(00) 00000-0000">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editarMembro(id) {
+    fetch(`/api/membros/${id}`)
+        .then(response => response.json())
+        .then(membro => {
+            document.getElementById('editarMembroForm').action = `/time/editar/${id}`;
+            document.getElementById('editNome').value = membro.nome;
+            document.getElementById('editEmail').value = membro.email;
+            document.getElementById('editTelefone').value = membro.telefone || '';
+            document.getElementById('currentProfilePhoto').src = membro.profile_photo ? 
+                `/static/profile_photos/${membro.profile_photo}` : 
+                `/static/profile_photos/default_profile.png`;
+            
+            const editarMembroModal = new bootstrap.Modal(document.getElementById('editarMembroModal'));
+            editarMembroModal.show();
+        })
+        .catch(error => {
+            console.error('Erro ao carregar dados do membro:', error);
+            alert('Erro ao carregar dados do membro');
+        });
+}
+
+function excluirMembro(id) {
+    if (confirm('Tem certeza que deseja excluir este membro do time?')) {
+        fetch(`/time/excluir/${id}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remover linha da tabela
+                    document.querySelector(`tr[data-membro-id="${id}"]`).remove();
+                    
+                    // Criar alerta de sucesso
+                    const alertContainer = document.querySelector('.container-fluid');
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-success alert-dismissible fade show';
+                    alert.innerHTML = `
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    alertContainer.insertBefore(alert, alertContainer.firstChild);
+                } else {
+                    // Criar alerta de erro
+                    const alertContainer = document.querySelector('.container-fluid');
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-danger alert-dismissible fade show';
+                    alert.innerHTML = `
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    alertContainer.insertBefore(alert, alertContainer.firstChild);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao excluir membro:', error);
+                
+                // Criar alerta de erro de rede
+                const alertContainer = document.querySelector('.container-fluid');
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger alert-dismissible fade show';
+                alert.innerHTML = `
+                    Erro de rede ao excluir membro. Tente novamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                alertContainer.insertBefore(alert, alertContainer.firstChild);
+            });
+    }
+}
+</script>
+{% endblock %}

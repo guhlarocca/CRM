@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Kanban</li>
+        </ol>
+    </nav>
+
+    <!-- Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Kanban de Leads</h2>
+            <p class="text-muted mb-0">Visualização e gerenciamento do fluxo de vendas</p>
+        </div>
+        <a href="{{ url_for('novo_lead') }}" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Novo Lead
+        </a>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-board row flex-nowrap overflow-auto pb-3">
+        {% for stage in stages %}
+        <div class="col">
+            <div class="card shadow-sm mb-1">
+                <div class="card-header py-1 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary small">{{ stage }}</h6>
+                    <span class="badge badge-primary badge-pill">{{ leads_por_estagio[stage]|length }}</span>
+                </div>
+                <div class="card-body p-1 kanban-column" data-stage="{{ stage }}">
+                    {% for lead in leads_por_estagio[stage] %}
+                    <div class="card mb-1 lead-card" data-lead-id="{{ lead.id }}">
+                        <div class="card-body p-2">
+                            <div class="d-flex flex-column">
+                                <h6 class="card-title mb-1 text-truncate">{{ lead.nome }}</h6>
+                                <p class="card-text small text-muted mb-1 text-truncate">
+                                    {{ lead.empresa if lead.empresa else 'Empresa não informada' }}
+                                </p>
+                                <div class="d-flex align-items-center">
+                                    {% if lead.vendedor %}
+                                        {% if lead.vendedor.profile_photo %}
+                                            <img src="{{ url_for('static', filename='profile_photos/' + lead.vendedor.profile_photo) }}" 
+                                                 alt="{{ lead.vendedor.nome }}"
+                                                 class="rounded-circle" 
+                                                 style="width: 24px; height: 24px; object-fit: cover; margin-right: 8px;">
+                                        {% else %}
+                                            <i class="fas fa-user-circle" style="font-size: 24px; margin-right: 8px; color: #6c757d;"></i>
+                                        {% endif %}
+                                        <small class="text-muted text-truncate">{{ lead.vendedor.nome }}</small>
+                                    {% else %}
+                                        <i class="fas fa-user-circle" style="font-size: 24px; margin-right: 8px; color: #6c757d;"></i>
+                                        <small class="text-muted text-truncate">Não atribuído</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Toast para notificações -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Notificação</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kanban-board {
+        margin: 0 -0.25rem;
+    }
+    .kanban-column {
+        min-height: 30px;
+        max-height: calc(100vh - 150px);
+        overflow-y: auto;
+    }
+    .col {
+        padding: 0 0.25rem;
+        flex-grow: 1;
+        flex-basis: 0;
+    }
+    .lead-card {
+        cursor: grab;
+        transition: transform 0.15s;
+        background-color: white;
+        font-size: 0.85rem;
+        border: 1px solid rgba(0,0,0,.125);
+    }
+    .lead-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0.1rem 0.5rem 0 rgba(58, 59, 69, 0.1);
+    }
+    .lead-card.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+    .card-header {
+        background-color: #f8f9fc;
+        padding: 0.5rem;
+    }
+    .card-title {
+        font-size: 0.95rem;
+        line-height: 1.2;
+    }
+    .kanban-board::-webkit-scrollbar, .kanban-column::-webkit-scrollbar {
+        height: 4px;
+        width: 4px;
+    }
+    .kanban-board::-webkit-scrollbar-track, .kanban-column::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    .kanban-board::-webkit-scrollbar-thumb, .kanban-column::-webkit-scrollbar-thumb {
+        background: #ddd;
+        border-radius: 2px;
+    }
+    .kanban-column.drag-over {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Adicionar Sortable.js -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar todas as colunas como Sortable
+    const columns = document.querySelectorAll('.kanban-column');
+    columns.forEach(column => {
+        new Sortable(column, {
+            group: 'leads',
+            animation: 150,
+            ghostClass: 'dragging',
+            dragClass: 'dragging',
+            onEnd: function(evt) {
+                const leadId = evt.item.dataset.leadId;
+                const newStage = evt.to.dataset.stage;
+                const oldStage = evt.from.dataset.stage;
+                
+                if (newStage !== oldStage) {
+                    updateLeadStage(leadId, newStage);
+                }
+            }
+        });
+    });
+
+    function updateLeadStage(leadId, newStage) {
+        fetch(`/api/leads/${leadId}/stage`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                stage: newStage
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Lead atualizado com sucesso!', 'success');
+                updateCounters();
+            } else {
+                showNotification('Erro ao atualizar o lead: ' + data.error, 'error');
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        })
+        .catch(error => {
+            showNotification('Erro ao atualizar o lead: ' + error, 'error');
+            setTimeout(() => window.location.reload(), 2000);
+        });
+    }
+
+    function updateCounters() {
+        columns.forEach(column => {
+            const counter = column.closest('.card').querySelector('.badge');
+            const leadCount = column.querySelectorAll('.lead-card').length;
+            counter.textContent = leadCount;
+        });
+    }
+
+    function showNotification(message, type) {
+        const toast = document.getElementById('notificationToast');
+        const toastBody = toast.querySelector('.toast-body');
+        
+        toastBody.textContent = message;
+        toast.classList.remove('bg-success', 'bg-danger');
+        toast.classList.add(type === 'success' ? 'bg-success' : 'bg-danger');
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // Adicionar evento de duplo clique para edição
+    const leadCards = document.querySelectorAll('.lead-card');
+    leadCards.forEach(card => {
+        card.addEventListener('dblclick', function() {
+            const leadId = this.dataset.leadId;
+            window.location.href = `/editar_lead/${leadId}`;
+        });
+    });
+});
+</script>
+{% endblock %}
