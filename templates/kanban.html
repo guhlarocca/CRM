@@ -26,9 +26,9 @@
         {% for stage in stages %}
         <div class="col">
             <div class="card shadow-sm mb-1">
-                <div class="card-header py-1 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary small">{{ stage }}</h6>
-                    <span class="badge badge-primary badge-pill">{{ leads_por_estagio[stage]|length }}</span>
+                <div class="stage-counter">
+                    <span class="stage-name">{{ stage }}</span>
+                    <span class="badge bg-primary">{{ leads_por_estagio[stage]|length }}</span>
                 </div>
                 <div class="card-body p-1 kanban-column" data-stage="{{ stage }}">
                     {% for lead in leads_por_estagio[stage] %}
@@ -45,13 +45,13 @@
                                             <img src="{{ url_for('static', filename='profile_photos/' + lead.vendedor.profile_photo) }}" 
                                                  alt="{{ lead.vendedor.nome }}"
                                                  class="rounded-circle" 
-                                                 style="width: 24px; height: 24px; object-fit: cover; margin-right: 8px;">
+                                                 style="width: 20px; height: 20px; object-fit: cover; margin-right: 6px;">
                                         {% else %}
-                                            <i class="fas fa-user-circle" style="font-size: 24px; margin-right: 8px; color: #6c757d;"></i>
+                                            <i class="fas fa-user-circle" style="font-size: 20px; margin-right: 6px; color: #6c757d;"></i>
                                         {% endif %}
                                         <small class="text-muted text-truncate">{{ lead.vendedor.nome }}</small>
                                     {% else %}
-                                        <i class="fas fa-user-circle" style="font-size: 24px; margin-right: 8px; color: #6c757d;"></i>
+                                        <i class="fas fa-user-circle" style="font-size: 20px; margin-right: 6px; color: #6c757d;"></i>
                                         <small class="text-muted text-truncate">Não atribuído</small>
                                     {% endif %}
                                 </div>
@@ -82,29 +82,37 @@
 {% block extra_css %}
 <style>
     .kanban-board {
-        margin: 0 -0.15rem;
+        margin: 0;
         overflow-x: auto;
         display: flex;
-        justify-content: flex-start;
+        padding: 0.25rem;
+        gap: 0.25rem;
     }
     .kanban-column {
         min-height: 30px;
-        max-height: calc(100vh - 180px);
+        max-height: calc(100vh - 200px);
         overflow-y: auto;
     }
     .col {
-        padding: 0 0.15rem;
-        flex-grow: 0;
-        flex-basis: 250px;
-        max-width: 280px;
+        padding: 0;
+        flex: 0 0 150px;
+        max-width: 150px;
+        transition: all 0.3s ease;
+    }
+    .col:has(.kanban-column:empty) {
+        flex: 0 0 120px;
+        max-width: 120px;
     }
     .lead-card {
         cursor: grab;
         transition: transform 0.15s;
         background-color: white;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         border: 1px solid rgba(0,0,0,.125);
         margin-bottom: 0.25rem;
+    }
+    .kanban-column:empty {
+        min-width: 110px;
     }
     .lead-card:hover {
         transform: translateY(-1px);
@@ -114,31 +122,82 @@
         opacity: 0.5;
         cursor: grabbing;
     }
-    .card-header {
-        background-color: #f8f9fc;
-        padding: 0.35rem;
-    }
     .card-title {
-        font-size: 0.9rem;
+        font-size: 0.75rem;
         line-height: 1.1;
         margin-bottom: 0.25rem;
     }
     .card-body {
-        padding: 0.5rem;
+        padding: 0.3rem;
     }
-    .kanban-board::-webkit-scrollbar, .kanban-column::-webkit-scrollbar {
-        height: 4px;
+    
+    /* Estilo para o contador e cabeçalho do estágio */
+    .stage-counter {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.3rem 0.4rem;
+        background-color: #f8f9fc;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+    }
+    .stage-counter .badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        background-color: #4e73df !important;
+    }
+    .stage-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4e73df;
+    }
+    
+    /* Scrollbar personalizado */
+    .kanban-board::-webkit-scrollbar {
+        height: 6px;
+    }
+    .kanban-column::-webkit-scrollbar {
         width: 4px;
     }
-    .kanban-board::-webkit-scrollbar-track, .kanban-column::-webkit-scrollbar-track {
+    .kanban-board::-webkit-scrollbar-track,
+    .kanban-column::-webkit-scrollbar-track {
         background: #f1f1f1;
+        border-radius: 3px;
     }
-    .kanban-board::-webkit-scrollbar-thumb, .kanban-column::-webkit-scrollbar-thumb {
-        background: #ddd;
-        border-radius: 2px;
+    .kanban-board::-webkit-scrollbar-thumb,
+    .kanban-column::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
     }
+    .kanban-board::-webkit-scrollbar-thumb:hover,
+    .kanban-column::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    /* Efeito de hover na coluna */
     .kanban-column.drag-over {
-        background-color: rgba(0, 123, 255, 0.05);
+        background-color: rgba(78, 115, 223, 0.05);
+    }
+    
+    /* Ajustes responsivos */
+    @media (min-width: 1200px) {
+        .col {
+            flex: 0 0 160px;
+            max-width: 160px;
+        }
+        .col:has(.kanban-column:empty) {
+            flex: 0 0 130px;
+            max-width: 130px;
+        }
+    }
+    @media (min-width: 1400px) {
+        .col {
+            flex: 0 0 170px;
+            max-width: 170px;
+        }
+        .col:has(.kanban-column:empty) {
+            flex: 0 0 140px;
+            max-width: 140px;
+        }
     }
 </style>
 {% endblock %}
@@ -169,13 +228,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function updateLeadStage(leadId, newStage) {
-        fetch(`/api/leads/${leadId}/stage`, {
-            method: 'PUT',
+        fetch(`/leads/${leadId}/update_stage`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                stage: newStage
+                estagio: newStage
             })
         })
         .then(response => response.json())

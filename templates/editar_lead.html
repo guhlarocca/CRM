@@ -249,4 +249,64 @@
         e.target.value = telefone;
     });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const nomeInput = document.getElementById('nome');
+    const emailInput = document.getElementById('email');
+    const vendedorInput = document.getElementById('vendedor_id');
+
+    form.addEventListener('submit', function(event) {
+        let hasErrors = false;
+        let errorMessage = 'Por favor, corrija os seguintes erros:\n\n';
+
+        // Validação do Nome
+        if (!nomeInput.value.trim()) {
+            errorMessage += '- O campo Nome é obrigatório.\n';
+            hasErrors = true;
+        }
+
+        // Validação do Email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailInput.value.trim()) {
+            errorMessage += '- O campo Email é obrigatório.\n';
+            hasErrors = true;
+        } else if (!emailRegex.test(emailInput.value)) {
+            errorMessage += '- Por favor, insira um email válido.\n';
+            hasErrors = true;
+        }
+
+        // Validação do Vendedor
+        if (!vendedorInput.value) {
+            errorMessage += '- Selecione um Vendedor Responsável.\n';
+            hasErrors = true;
+        }
+
+        // Validações de emails adicionais (opcional)
+        const emailsAdicionais = [
+            'email_comercial', 
+            'email_comercial_02', 
+            'email_comercial_03', 
+            'email_financeiro'
+        ];
+
+        emailsAdicionais.forEach(emailId => {
+            const emailAdicionalInput = document.getElementById(emailId);
+            if (emailAdicionalInput.value.trim()) {
+                if (!emailRegex.test(emailAdicionalInput.value)) {
+                    errorMessage += `- O email ${emailId.replace('_', ' ')} não é válido.\n`;
+                    hasErrors = true;
+                }
+            }
+        });
+
+        // Se houver erros, previne o envio e mostra mensagem
+        if (hasErrors) {
+            event.preventDefault();
+            alert(errorMessage);
+        }
+    });
+});
+</script>
 {% endblock %}

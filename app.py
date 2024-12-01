@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
-from sqlalchemy import func, desc, inspect
-from database.conexao import ConexaoBanco
+from sqlalchemy import func, desc, inspect, text
+from database.conexao_supabase import ConexaoSupabase
 from database.repositorio import LeadRepositorio, TimeRepositorio
 from database.usuario_repositorio import UsuarioRepositorio
 from database.modelos import Lead, Time, Base, Usuario
@@ -11,6 +11,11 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import sessionmaker
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+import psycopg2
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -44,34 +49,27 @@ def save_profile_photo(file):
         return unique_filename
     return 'default_profile.png'
 
-# Conexão com o banco
-conexao = ConexaoBanco()
-engine = conexao.criar_engine()
-Session = sessionmaker(bind=engine)
-sessao = Session()
+# Conexão com o Supabase
+conexao = ConexaoSupabase()
 
-def get_sessao():
-    global sessao
-    try:
-        if not sessao or not sessao.is_active:
-            sessao = Session()
-        return sessao
-    except Exception as e:
-        app.logger.error(f"Erro ao obter sessão: {e}")
-        sessao = Session()
-        return sessao
+def get_conn():
+    return conexao.get_connection()
 
-def fechar_sessao():
-    global sessao
+def get_cur(conn):
+    return conn.cursor()
+
+def fechar_sessao(cur, conn):
     try:
-        if sessao and sessao.is_active:
-            sessao.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     except Exception as e:
         app.logger.error(f"Erro ao fechar sessão: {e}")
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    fechar_sessao()
+    fechar_sessao(cur=None, conn=None)
 
 def login_required(f):
     @wraps(f)
@@ -92,21 +90,27 @@ def login():
             flash('Por favor, preencha todos os campos.', 'danger')
             return redirect(url_for('login'))
         
-        usuario_repo = UsuarioRepositorio(get_sessao())
-        usuario = usuario_repo.buscar_por_email(email)
-        
-        if usuario and check_password_hash(usuario.senha, senha):
-            session['user_id'] = usuario.id
-            session['user_name'] = usuario.nome
-            session['user_email'] = usuario.email
-            session['is_admin'] = usuario.is_admin
-            session['profile_photo'] = usuario.profile_photo if usuario.profile_photo else 'default_profile.png'
-            session.permanent = True
-            
-            flash(f'Bem-vindo(a), {usuario.nome}!', 'success')
-            return redirect(url_for('index'))
-        else:
-            flash('Email ou senha incorretos.', 'danger')
+        try:
+            usuario_repo = UsuarioRepositorio()
+            if usuario_repo.verificar_senha(email, senha):
+                usuario = usuario_repo.buscar_por_email(email)
+                # Definir informações na sessão
+                session['user_id'] = usuario['id']
+                session['user_name'] = usuario['nome']
+                session['user_email'] = usuario['email']
+                session['is_admin'] = usuario.get('is_admin', False)
+                session['profile_photo'] = usuario.get('profile_photo', 'default_profile.png')
+
+                logging.info(f"Login realizado: {usuario['nome']}")
+                flash('Login realizado com sucesso!', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Email ou senha incorretos.', 'danger')
+                return redirect(url_for('login'))
+                
+        except Exception as e:
+            logging.error(f"Erro no login: {e}")
+            flash('Ocorreu um erro ao fazer login.', 'danger')
             return redirect(url_for('login'))
     
     return render_template('login.html')
@@ -118,102 +122,72 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
-@login_required
 def index():
     try:
-        lead_repo = LeadRepositorio(get_sessao())
-        time_repo = TimeRepositorio(get_sessao())
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
 
-        # Garantir que haja pelo menos um membro no time
-        if not time_repo.verificar_membros_existentes():
-            app.logger.info("Criando membro padrão...")
-            novo_membro = time_repo.criar_membro(
+        time_repo = TimeRepositorio()
+        lead_repo = LeadRepositorio()
+        usuario_repo = UsuarioRepositorio()
+        
+        # Buscar dados do usuário
+        usuario = usuario_repo.buscar_por_id(session['user_id'])
+        if not usuario:
+            return redirect(url_for('login'))
+            
+        # Buscar membros e leads
+        membros = time_repo.listar_membros()
+        leads = lead_repo.listar_leads()
+        
+        # Log para debug
+        logging.info(f"Número de membros: {len(membros)}")
+        logging.info(f"Número de leads: {len(leads)}")
+        
+        # Adicionar contagem de leads por vendedor
+        for membro in membros:
+            membro['leads'] = lead_repo.contar_leads_por_vendedor(membro['id'])
+        
+        # Buscar contagens por região e estado
+        leads_por_regiao = lead_repo.contar_leads_por_regiao()
+        leads_por_estado = lead_repo.contar_leads_por_estado()
+        leads_por_estagio = lead_repo.contar_leads_por_estagio()
+        
+        # Buscar leads recentes
+        leads_recentes = lead_repo.listar_leads_recentes(limite=10)
+        
+        # Se não houver membros, criar um membro padrão
+        if not membros:
+            time_repo.criar_membro(
                 nome="Vendedor Padrão",
                 email="vendedor_padrao@empresa.com",
-                telefone="(11) 99999-9999"
+                telefone="123456789"
             )
-            if not novo_membro:
-                app.logger.error("ERRO: Falha ao criar membro padrão")
+            # Recarregar membros após criação
+            membros = time_repo.listar_membros()
 
-        # Buscar dados para o dashboard
-        total_leads = lead_repo.contar_total_leads()
-        total_vendas = lead_repo.contar_vendas()
-        
-        # Buscar leads por estágio
-        leads_por_estagio = lead_repo.agrupar_leads_por_status()
-        leads_recentes = lead_repo.listar_leads_recentes(5)
-
-        # Buscar dados de leads por estado e agrupar por região
-        leads_por_estado = lead_repo.contar_leads_por_estado()
-        
-        # Definir regiões e seus estados
-        regioes = {
-            'Norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
-            'Nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
-            'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
-            'Sudeste': ['ES', 'MG', 'RJ', 'SP'],
-            'Sul': ['PR', 'RS', 'SC']
-        }
-        
-        # Calcular total de leads por região
-        leads_por_regiao = {regiao: 0 for regiao in regioes.keys()}
-        for estado, quantidade in leads_por_estado.items():
-            if estado != 'Não Informado':
-                for regiao, estados in regioes.items():
-                    if estado in estados:
-                        leads_por_regiao[regiao] += quantidade
-                        break
-
-        # Criar dicionário com nomes completos dos estados
-        nomes_estados = {
-            'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas', 'BA': 'Bahia',
-            'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo', 'GO': 'Goiás',
-            'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul', 'MG': 'Minas Gerais',
-            'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná', 'PE': 'Pernambuco', 'PI': 'Piauí',
-            'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte', 'RS': 'Rio Grande do Sul',
-            'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina', 'SP': 'São Paulo',
-            'SE': 'Sergipe', 'TO': 'Tocantins'
-        }
-
-        # Formatar dados de estado para o gráfico
-        leads_por_estado_formatado = {
-            nomes_estados.get(estado, estado): quantidade 
-            for estado, quantidade in leads_por_estado.items() 
-            if estado != 'Não Informado' and quantidade > 0
-        }
-        
-        # Buscar membros do time
-        membros_time = time_repo.listar_membros()
-        
-        # Contar times
-        total_times = time_repo.contar_total_times()
-        
-        # Atualizar estatísticas de membros
-        for membro in membros_time:
-            membro['leads'] = lead_repo.contar_leads_por_vendedor(membro['id'])
-            membro['vendas'] = lead_repo.contar_vendas_por_vendedor(membro['id'])
-
-        return render_template(
-            'index.html', 
-            total_leads=total_leads,
-            total_vendas=total_vendas,
-            total_times=total_times,
-            leads_recentes=leads_recentes,
-            membros_time=membros_time,
-            leads_por_estagio=leads_por_estagio,
-            leads_por_regiao=leads_por_regiao,
-            leads_por_estado=leads_por_estado_formatado
-        )
-    
+        return render_template('index.html',
+                            usuario=usuario,
+                            membros=membros,
+                            membros_time=membros,  # alias para manter compatibilidade
+                            leads=leads,
+                            leads_recentes=leads_recentes,
+                            leads_por_regiao=leads_por_regiao,
+                            leads_por_estado=leads_por_estado,
+                            leads_por_estagio=leads_por_estagio,
+                            total_times=len(membros) if membros else 0,
+                            total_leads=len(leads),
+                            total_vendas=sum(membro['vendas'] for membro in membros))
+                            
     except Exception as e:
-        app.logger.error(f"Erro no Dashboard: {e}")
-        flash('Erro ao carregar o dashboard.', 'danger')
+        logging.error(f"Erro na rota principal: {e}", exc_info=True)
+        flash('Ocorreu um erro ao carregar a página', 'error')
         return redirect(url_for('login'))
 
 @app.route('/time')
 @login_required
 def time():
-    time_repo = TimeRepositorio(get_sessao())
+    time_repo = TimeRepositorio()
     membros = time_repo.listar_membros()
     return render_template('time.html', membros=membros)
 
@@ -224,33 +198,39 @@ def criar_membro():
         nome = request.form.get('nome')
         email = request.form.get('email')
         telefone = request.form.get('telefone')
-        profile_photo = request.files.get('profile_photo')
-
-        if not nome or not email:
-            flash('Nome e email são obrigatórios.', 'danger')
+        
+        # Validar campos obrigatórios
+        if not nome or not email or not telefone:
+            flash('Por favor, preencha todos os campos obrigatórios.', 'danger')
             return redirect(url_for('time'))
 
-        photo_filename = save_profile_photo(profile_photo)
+        # Processar foto do perfil
+        profile_photo = 'default_profile.png'
+        if 'profile_photo' in request.files:
+            file = request.files['profile_photo']
+            if file and file.filename:
+                profile_photo = save_profile_photo(file)
 
-        time_repo = TimeRepositorio(get_sessao())
-        time_repo.criar_membro(
-            nome=nome,
-            email=email,
-            telefone=telefone,
-            profile_photo=photo_filename
-        )
-
-        flash('Membro adicionado com sucesso!', 'success')
-        return redirect(url_for('time'))
+        # Criar membro
+        time_repo = TimeRepositorio()
+        novo_id = time_repo.criar_membro(nome, email, telefone, profile_photo)
+        
+        if novo_id:
+            flash('Membro criado com sucesso!', 'success')
+        else:
+            flash('Email já cadastrado.', 'danger')
+            
     except Exception as e:
-        flash(f'Erro ao adicionar membro: {str(e)}', 'danger')
-        return redirect(url_for('time'))
+        app.logger.error(f"Erro ao criar membro: {e}")
+        flash('Erro ao criar membro. Por favor, tente novamente.', 'danger')
+    
+    return redirect(url_for('time'))
 
 @app.route('/time/editar/<int:id>', methods=['GET', 'POST'])
 @login_required
 def editar_membro(id):
     try:
-        time_repo = TimeRepositorio(get_sessao())
+        time_repo = TimeRepositorio()
         
         # Log de depuração
         app.logger.info(f"\n--- INÍCIO EDITAR MEMBRO ---")
@@ -323,7 +303,7 @@ def editar_membro(id):
 @login_required
 def excluir_membro(id):
     try:
-        time_repo = TimeRepositorio(get_sessao())
+        time_repo = TimeRepositorio()
         
         # Tentar excluir o membro
         if time_repo.excluir_membro(id):
@@ -343,7 +323,7 @@ def excluir_membro(id):
 @login_required
 def get_membro(id):
     try:
-        time_repo = TimeRepositorio(get_sessao())
+        time_repo = TimeRepositorio()
         membro = time_repo.buscar_membro_por_id(id)
         if membro:
             return jsonify({
@@ -361,7 +341,7 @@ def get_membro(id):
 @login_required
 def kanban():
     try:
-        lead_repo = LeadRepositorio(get_sessao())
+        lead_repo = LeadRepositorio()
         leads_por_estagio = {}
         
         estagios = [
@@ -402,61 +382,96 @@ def kanban():
         flash('Erro ao carregar o quadro Kanban.', 'danger')
         return redirect(url_for('index'))
 
-@app.route('/api/leads/<int:lead_id>/stage', methods=['PUT'])
+@app.route('/leads/<int:lead_id>/update_stage', methods=['POST'])
 @login_required
 def atualizar_estagio_lead(lead_id):
     try:
-        data = request.get_json()
-        novo_estagio = data.get('stage')
-        
+        novo_estagio = request.json.get('estagio')
         if not novo_estagio:
-            return jsonify({'success': False, 'message': 'Novo estágio não fornecido'}), 400
-        
-        lead_repo = LeadRepositorio(get_sessao())
-        lead_repo.atualizar_estagio(lead_id, novo_estagio)
-        
-        return jsonify({'success': True})
+            return jsonify({'success': False, 'error': 'Estágio não informado'}), 400
+
+        lead_repo = LeadRepositorio()
+        if lead_repo.atualizar_estagio(lead_id, novo_estagio):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Lead não encontrado'}), 404
+            
     except Exception as e:
         app.logger.error(f"Erro ao atualizar estágio do lead: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/novo-lead', methods=['GET', 'POST'])
 @login_required
 def novo_lead():
     if request.method == 'POST':
         try:
-            nome = request.form.get('nome')
-            empresa = request.form.get('empresa')
-            cargo = request.form.get('cargo')
-            email = request.form.get('email')
-            telefone = request.form.get('telefone')
-            linkedin = request.form.get('linkedin')
-            vendedor_id = request.form.get('vendedor_id')
+            # Conversão segura do vendedor_id
+            try:
+                vendedor_id = int(request.form.get('vendedor_id', 0))
+            except (ValueError, TypeError):
+                vendedor_id = None
+                app.logger.warning(f"ID do vendedor inválido: {request.form.get('vendedor_id')}")
+
+            # Converter venda_fechada para booleano
+            venda_fechada = request.form.get('venda_fechada') == 'on'
+            app.logger.info(f"Venda fechada: {venda_fechada}")
+
+            dados_lead = {
+                'nome': request.form.get('nome'),
+                'email': request.form.get('email'),
+                'telefone': request.form.get('telefone'),
+                'empresa': request.form.get('empresa'),
+                'cargo': request.form.get('cargo'),
+                'estagio_atual': request.form.get('estagio_atual', 'Novo'),
+                'vendedor_id': vendedor_id,
+                'venda_fechada': venda_fechada,
+                
+                # Campos adicionais
+                'email_comercial': request.form.get('email_comercial'),
+                'email_comercial_02': request.form.get('email_comercial_02'),
+                'email_comercial_03': request.form.get('email_comercial_03'),
+                'email_financeiro': request.form.get('email_financeiro'),
+                'telefone_comercial': request.form.get('telefone_comercial'),
+                'cidade': request.form.get('cidade'),
+                'estado': request.form.get('estado')
+            }
             
-            if not nome or not empresa or not vendedor_id:
-                flash('Por favor, preencha todos os campos obrigatórios.', 'danger')
-                return redirect(url_for('novo_lead'))
+            # Log dos dados recebidos
+            app.logger.info(f"Dados do lead recebidos: {dados_lead}")
             
-            lead_repo = LeadRepositorio(get_sessao())
-            lead_repo.criar_lead(
-                nome=nome,
-                empresa=empresa,
-                cargo=cargo,
-                email=email,
-                telefone=telefone,
-                linkedin=linkedin,
-                vendedor_id=vendedor_id
-            )
+            # Validação dos campos obrigatórios
+            if not dados_lead['nome']:
+                flash('Nome é obrigatório.', 'danger')
+                return redirect(url_for('criar_lead'))
             
-            flash('Lead criado com sucesso!', 'success')
-            return redirect(url_for('kanban'))
+            if not dados_lead['email']:
+                flash('Email é obrigatório.', 'danger')
+                return redirect(url_for('criar_lead'))
+            
+            if not dados_lead['vendedor_id']:
+                flash('Vendedor é um campo obrigatório. Por favor, selecione um vendedor.', 'danger')
+                return redirect(url_for('criar_lead'))
+            
+            lead_repo = LeadRepositorio()
+            lead_id = lead_repo.criar_lead(dados_lead)
+            
+            # Log do resultado da criação do lead
+            app.logger.info(f"Lead criado com ID: {lead_id}")
+            
+            if lead_id:
+                flash('Lead criado com sucesso!', 'success')
+                return redirect(url_for('leads'))
+            else:
+                flash('Erro ao criar lead.', 'danger')
+                return redirect(url_for('criar_lead'))
             
         except Exception as e:
-            app.logger.error(f"Erro ao criar lead: {e}")
+            app.logger.error(f"Erro ao criar lead: {e}", exc_info=True)
             flash('Erro ao criar lead.', 'danger')
-            return redirect(url_for('novo_lead'))
+            return redirect(url_for('criar_lead'))
     
-    time_repo = TimeRepositorio(get_sessao())
+    # GET: Renderizar formulário
+    time_repo = TimeRepositorio()
     vendedores = time_repo.listar_membros()
     return render_template('novo_lead.html', vendedores=vendedores)
 
@@ -464,146 +479,197 @@ def novo_lead():
 @login_required
 def leads():
     try:
-        # Get the current session
-        sessao = get_sessao()
+        lead_repo = LeadRepositorio()
         
-        # Create lead repository with the current session
-        lead_repo = LeadRepositorio(sessao)
+        # Verificar se há um termo de busca
+        termo_busca = request.args.get('busca', '').strip()
         
-        # List leads
-        leads = lead_repo.listar_leads()
+        if termo_busca:
+            # Se houver termo de busca, usar método de pesquisa
+            leads = lead_repo.pesquisar_leads(termo_busca)
+        else:
+            # Caso contrário, listar todos os leads
+            leads = lead_repo.listar_leads()
         
-        # Se for uma requisição AJAX, retornar JSON
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            leads_json = []
-            for lead in leads:
-                lead_dict = {
-                    'id': lead.id,
-                    'nome': lead.nome,
-                    'email': lead.email,
-                    'telefone': lead.telefone,
-                    'empresa': lead.empresa,
-                    'cargo': lead.cargo,
-                    'vendedor': {
-                        'nome': lead.vendedor.nome if lead.vendedor else None
-                    } if lead.vendedor else None,
-                    'estagio_atual': lead.estagio_atual,
-                    'data_criacao': lead.data_criacao.isoformat() if lead.data_criacao else None,
-                    'venda_fechada': lead.venda_fechada
-                }
-                leads_json.append(lead_dict)
-            return jsonify(leads_json)
+        # Contar total de leads
+        total_leads = len(leads)
         
-        # Render template with leads
-        return render_template('leads.html', leads=leads)
+        # Calcular estatísticas
+        leads_por_estagio = {}
+        for lead in leads:
+            estagio = lead['estagio_atual']
+            if estagio not in leads_por_estagio:
+                leads_por_estagio[estagio] = 0
+            leads_por_estagio[estagio] += 1
+        
+        # Log de depuração
+        app.logger.info(f"Total de leads: {total_leads}")
+        app.logger.info(f"Leads por estágio: {leads_por_estagio}")
+        
+        return render_template('leads.html', 
+                               leads=leads, 
+                               total_leads=total_leads, 
+                               leads_por_estagio=leads_por_estagio,
+                               termo_busca=termo_busca)
     except Exception as e:
-        app.logger.error(f"Erro na rota leads: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Se for AJAX, retornar erro JSON
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'error': str(e)}), 500
-        
-        flash('Erro ao carregar leads.', 'danger')
-        return render_template('leads.html', leads=[])
+        logging.error(f"Erro na página de leads: {e}", exc_info=True)
+        flash('Ocorreu um erro ao carregar os leads', 'error')
+        return redirect(url_for('index'))
 
 @app.route('/leads/novo', methods=['GET', 'POST'])
 @login_required
 def criar_lead():
     if request.method == 'POST':
         try:
+            # Conversão segura do vendedor_id
+            try:
+                vendedor_id = int(request.form.get('vendedor_id', 0))
+            except (ValueError, TypeError):
+                vendedor_id = None
+                app.logger.warning(f"ID do vendedor inválido: {request.form.get('vendedor_id')}")
+
+            # Converter venda_fechada para booleano
+            venda_fechada = request.form.get('venda_fechada') == 'on'
+            app.logger.info(f"Venda fechada: {venda_fechada}")
+
             dados_lead = {
                 'nome': request.form.get('nome'),
                 'email': request.form.get('email'),
                 'telefone': request.form.get('telefone'),
                 'empresa': request.form.get('empresa'),
                 'cargo': request.form.get('cargo'),
-                'estagio_atual': 'Não Iniciado',
-                'vendedor_id': request.form.get('vendedor_id', type=int)
+                'estagio_atual': request.form.get('estagio_atual', 'Novo'),
+                'vendedor_id': vendedor_id,
+                'venda_fechada': venda_fechada,
+                
+                # Campos adicionais
+                'email_comercial': request.form.get('email_comercial'),
+                'email_comercial_02': request.form.get('email_comercial_02'),
+                'email_comercial_03': request.form.get('email_comercial_03'),
+                'email_financeiro': request.form.get('email_financeiro'),
+                'telefone_comercial': request.form.get('telefone_comercial'),
+                'cidade': request.form.get('cidade'),
+                'estado': request.form.get('estado')
             }
             
-            lead_repo = LeadRepositorio(get_sessao())
-            lead_repo.criar_lead(dados_lead)
+            # Log dos dados recebidos
+            app.logger.info(f"Dados do lead recebidos: {dados_lead}")
             
-            flash('Lead criado com sucesso!', 'success')
-            return redirect(url_for('leads'))
+            # Validação dos campos obrigatórios
+            if not dados_lead['nome']:
+                flash('Nome é obrigatório.', 'danger')
+                return redirect(url_for('criar_lead'))
+            
+            if not dados_lead['email']:
+                flash('Email é obrigatório.', 'danger')
+                return redirect(url_for('criar_lead'))
+            
+            if not dados_lead['vendedor_id']:
+                flash('Vendedor é um campo obrigatório. Por favor, selecione um vendedor.', 'danger')
+                return redirect(url_for('criar_lead'))
+            
+            lead_repo = LeadRepositorio()
+            lead_id = lead_repo.criar_lead(dados_lead)
+            
+            # Log do resultado da criação do lead
+            app.logger.info(f"Lead criado com ID: {lead_id}")
+            
+            if lead_id:
+                flash('Lead criado com sucesso!', 'success')
+                return redirect(url_for('leads'))
+            else:
+                flash('Erro ao criar lead.', 'danger')
+                return redirect(url_for('criar_lead'))
             
         except Exception as e:
-            app.logger.error(f"Erro ao criar lead: {e}")
+            app.logger.error(f"Erro ao criar lead: {e}", exc_info=True)
             flash('Erro ao criar lead.', 'danger')
-            return redirect(url_for('leads'))
+            return redirect(url_for('criar_lead'))
     
     # GET: Renderizar formulário
-    time_repo = TimeRepositorio(get_sessao())
+    time_repo = TimeRepositorio()
     vendedores = time_repo.listar_membros()
     return render_template('novo_lead.html', vendedores=vendedores)
 
 @app.route('/leads/editar/<int:lead_id>', methods=['GET', 'POST'])
 @login_required
 def editar_lead(lead_id):
-    lead_repo = LeadRepositorio(get_sessao())
+    lead_repo = LeadRepositorio()
+    lead = lead_repo.buscar_lead_por_id(lead_id)
+    
+    if not lead:
+        flash('Lead não encontrado.', 'danger')
+        return redirect(url_for('leads'))
     
     if request.method == 'POST':
         try:
-            # Processar venda_fechada como booleano
-            venda_fechada = 'venda_fechada' in request.form
-            
-            # Coletar TODOS os campos do formulário
+            # Conversão segura do vendedor_id
+            try:
+                vendedor_id = int(request.form.get('vendedor_id', 0))
+            except (ValueError, TypeError):
+                vendedor_id = None
+                app.logger.warning(f"ID do vendedor inválido: {request.form.get('vendedor_id')}")
+
+            # Converter venda_fechada para booleano
+            venda_fechada = request.form.get('venda_fechada') == 'on'
+            app.logger.info(f"Venda fechada: {venda_fechada}")
+
             dados_lead = {
-                # Campos básicos
                 'nome': request.form.get('nome'),
                 'email': request.form.get('email'),
                 'telefone': request.form.get('telefone'),
                 'empresa': request.form.get('empresa'),
                 'cargo': request.form.get('cargo'),
-                'estagio_atual': request.form.get('estagio_atual'),
-                'vendedor_id': request.form.get('vendedor_id', type=int),
+                'estagio_atual': request.form.get('estagio_atual', 'Novo'),
+                'vendedor_id': vendedor_id,
                 'venda_fechada': venda_fechada,
-                'observacoes': request.form.get('observacoes', ''),
                 
-                # Campos de contato adicionais
-                'contato_01': request.form.get('contato_01'),
-                'contato_02': request.form.get('contato_02'),
-                'cidade': request.form.get('cidade'),
-                'estado': request.form.get('estado'),
-                
-                # Emails adicionais
+                # Campos adicionais
                 'email_comercial': request.form.get('email_comercial'),
                 'email_comercial_02': request.form.get('email_comercial_02'),
                 'email_comercial_03': request.form.get('email_comercial_03'),
                 'email_financeiro': request.form.get('email_financeiro'),
-                
-                # Telefone comercial
-                'telefone_comercial': request.form.get('telefone_comercial')
+                'telefone_comercial': request.form.get('telefone_comercial'),
+                'cidade': request.form.get('cidade'),
+                'estado': request.form.get('estado')
             }
             
-            # Remover chaves com valor None
-            dados_lead = {k: v for k, v in dados_lead.items() if v is not None and v != ''}
+            # Log dos dados recebidos
+            app.logger.info(f"Dados do lead recebidos para edição: {dados_lead}")
             
-            # Log de depuração detalhado
-            app.logger.info("\n--- DADOS RECEBIDOS PARA EDIÇÃO ---")
-            for key, value in dados_lead.items():
-                app.logger.info(f"{key}: {value}")
+            # Validação dos campos obrigatórios
+            if not dados_lead['nome']:
+                flash('Nome é obrigatório.', 'danger')
+                return redirect(url_for('editar_lead', lead_id=lead_id))
             
-            lead_repo.editar_lead(lead_id, dados_lead)
-            flash('Lead atualizado com sucesso!', 'success')
-            return redirect(url_for('leads'))
+            if not dados_lead['email']:
+                flash('Email é obrigatório.', 'danger')
+                return redirect(url_for('editar_lead', lead_id=lead_id))
+            
+            if not dados_lead['vendedor_id']:
+                flash('Vendedor é um campo obrigatório. Por favor, selecione um vendedor.', 'danger')
+                return redirect(url_for('editar_lead', lead_id=lead_id))
+            
+            # Atualizar lead
+            resultado = lead_repo.atualizar_lead(lead_id, dados_lead)
+            
+            # Log do resultado da atualização do lead
+            app.logger.info(f"Lead atualizado: {resultado}")
+            
+            if resultado:
+                flash('Lead atualizado com sucesso!', 'success')
+                return redirect(url_for('leads'))
+            else:
+                flash('Erro ao atualizar lead.', 'danger')
+                return redirect(url_for('editar_lead', lead_id=lead_id))
             
         except Exception as e:
-            app.logger.error(f"Erro ao atualizar lead: {e}")
-            import traceback
-            traceback.print_exc()
+            app.logger.error(f"Erro ao atualizar lead: {e}", exc_info=True)
             flash('Erro ao atualizar lead.', 'danger')
-            return redirect(url_for('leads'))
+            return redirect(url_for('editar_lead', lead_id=lead_id))
     
-    # GET: Buscar lead e renderizar formulário
-    lead = lead_repo.buscar_lead_por_id(lead_id)
-    if not lead:
-        flash('Lead não encontrado.', 'danger')
-        return redirect(url_for('leads'))
-    
-    time_repo = TimeRepositorio(get_sessao())
+    # GET: Renderizar formulário de edição
+    time_repo = TimeRepositorio()
     vendedores = time_repo.listar_membros()
     return render_template('editar_lead.html', lead=lead, vendedores=vendedores)
 
@@ -611,7 +677,7 @@ def editar_lead(lead_id):
 @login_required
 def excluir_lead(lead_id):
     try:
-        lead_repo = LeadRepositorio(get_sessao())
+        lead_repo = LeadRepositorio()
         if lead_repo.excluir_lead(lead_id):
             flash('Lead excluído com sucesso!', 'success')
         else:
@@ -621,6 +687,37 @@ def excluir_lead(lead_id):
         flash('Erro ao excluir lead.', 'danger')
     
     return redirect(url_for('leads'))
+
+@app.route('/api/leads')
+@login_required
+def api_leads():
+    try:
+        lead_repo = LeadRepositorio()
+        leads = lead_repo.listar_leads()
+        return jsonify(leads)
+    except Exception as e:
+        app.logger.error(f"Erro ao buscar leads: {e}")
+        return jsonify([]), 500
+
+@app.route('/debug/usuarios')
+def debug_usuarios():
+    """Rota para listar todos os usuários (APENAS PARA DEBUG)"""
+    if not app.debug:
+        return "Debug mode is off", 403
+    
+    usuario_repo = UsuarioRepositorio()
+    usuarios = usuario_repo.listar_usuarios()
+    
+    usuarios_info = []
+    for usuario in usuarios:
+        usuarios_info.append({
+            'id': usuario.id,
+            'nome': usuario.nome,
+            'email': usuario.email,
+            'is_admin': usuario.is_admin
+        })
+    
+    return jsonify(usuarios_info)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

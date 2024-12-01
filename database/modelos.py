@@ -4,6 +4,8 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
+import unicodedata
+import re
 
 Base = declarative_base()
 
@@ -78,11 +80,41 @@ class Usuario(Base):
     __tablename__ = 'usuarios'
     
     id = Column(Integer, primary_key=True)
-    nome = Column(String(100), nullable=False)
-    email = Column(String(100), nullable=False, unique=True)
-    senha = Column(String(255), nullable=False)
+    nome = Column(Unicode(100), nullable=False)
+    email = Column(Unicode(100), nullable=False, unique=True)
+    senha = Column(Unicode(255), nullable=False)
     is_admin = Column(Boolean, default=False)
-    profile_photo = Column(String(255), nullable=True, default='default_profile.png')
+    profile_photo = Column(Unicode(255), nullable=True, default='default_profile.png')
+
+    @classmethod
+    def normalizar_texto(cls, texto, max_length=100):
+        """
+        Método robusto para normalizar texto com tratamento de codificação
+        """
+        if not isinstance(texto, str):
+            try:
+                texto = str(texto)
+            except Exception:
+                texto = ''
+        
+        # Remover acentos
+        texto_normalizado = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('utf-8')
+        
+        # Remover caracteres não-alfanuméricos
+        texto_normalizado = re.sub(r'[^a-zA-Z0-9\s\.\@]', '', texto_normalizado)
+        
+        # Truncar para o tamanho máximo
+        return texto_normalizado[:max_length].strip()
+
+    def __init__(self, *args, **kwargs):
+        # Normalizar campos sensíveis
+        if 'nome' in kwargs:
+            kwargs['nome'] = self.normalizar_texto(kwargs['nome'], max_length=100)
+        
+        if 'email' in kwargs:
+            kwargs['email'] = self.normalizar_texto(kwargs['email'], max_length=100)
+        
+        super().__init__(*args, **kwargs)
 
     def __repr__(self):
         return f"<Usuario(id={self.id}, nome='{self.nome}', email='{self.email}')>"

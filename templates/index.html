@@ -197,40 +197,24 @@
                     <thead>
                         <tr>
                             <th>Nome</th>
-                            <th>Email</th>
-                            <th>Telefone</th>
-                            <th>Data</th>
+                            <th>Empresa</th>
                             <th>Status</th>
                             <th>Vendedor</th>
+                            <th>Data Criação</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for lead in leads_recentes %}
                         <tr>
-                            <td>{{ lead['nome'] }}</td>
-                            <td>{{ lead['email'] }}</td>
-                            <td>{{ lead['telefone'] }}</td>
-                            <td>{{ lead['data_criacao'].strftime('%d/%m/%Y') }}</td>
-                            <td>
-                                {% if lead['venda_fechada'] %}
-                                <span class="badge bg-success">Venda Fechada</span>
-                                {% else %}
-                                <span class="badge bg-primary">{{ lead['estagio'] }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if lead['vendedor'] %}
-                                    <div class="d-flex align-items-center">
-                                        <img src="{{ url_for('static', filename='profile_photos/' + lead['vendedor']['profile_photo']) }}" 
-                                             class="rounded-circle me-2" 
-                                             alt="{{ lead['vendedor']['nome'] }}"
-                                             style="width: 30px; height: 30px; object-fit: cover;">
-                                        <span>{{ lead['vendedor']['nome'] }}</span>
-                                    </div>
-                                {% else %}
-                                    <span class="text-muted">Não atribuído</span>
-                                {% endif %}
-                            </td>
+                            <td>{{ lead.nome }}</td>
+                            <td>{{ lead.empresa }}</td>
+                            <td>{{ lead.estagio_atual }}</td>
+                            <td>{{ lead.vendedor_nome or 'Sem vendedor' }}</td>
+                            <td>{{ lead.data_criacao.strftime('%d/%m/%Y') if lead.data_criacao else 'Data não disponível' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Nenhum lead recente encontrado</td>
                         </tr>
                         {% endfor %}
                     </tbody>
