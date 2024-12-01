@@ -750,11 +750,19 @@ class LeadRepositorio:
 
     def listar_leads_recentes(self, limite=5):
         try:
-            leads = self.sessao.query(Lead).order_by(Lead.data_criacao.desc()).limit(limite).all()
+            leads = self.sessao.query(Lead).options(joinedload(Lead.vendedor)).order_by(Lead.data_criacao.desc()).limit(limite).all()
             
             # Converter leads para dicionário
             leads_recentes = []
             for lead in leads:
+                vendedor_dict = None
+                if lead.vendedor:
+                    vendedor_dict = {
+                        'id': lead.vendedor.id,
+                        'nome': lead.vendedor.nome,
+                        'profile_photo': lead.vendedor.profile_photo or 'default_profile.png'
+                    }
+
                 lead_dict = {
                     'nome': lead.nome,
                     'email': lead.email,
@@ -762,14 +770,9 @@ class LeadRepositorio:
                     'data_criacao': lead.data_criacao,
                     'venda_fechada': lead.venda_fechada,
                     'estagio': lead.estagio_atual,
-                    'vendedor_nome': lead.vendedor.nome if lead.vendedor else 'Sem Vendedor'
+                    'vendedor': vendedor_dict
                 }
                 leads_recentes.append(lead_dict)
-            
-            # Debug
-            print("Leads Recentes Debug:")
-            for lead in leads_recentes:
-                print(lead)
             
             return leads_recentes
         except Exception as e:
@@ -990,3 +993,26 @@ class LeadRepositorio:
         except Exception as e:
             print(f"Erro ao buscar leads por estágio: {e}")
             return []
+
+    def contar_leads_por_estado(self):
+        """
+        Conta o número de leads por estado
+        :return: Dicionário com estados e quantidade de leads
+        """
+        try:
+            # Usar func.count para contar leads por estado
+            resultado = self.sessao.query(
+                Lead.estado, 
+                func.count(Lead.id).label('total_leads')
+            ).group_by(Lead.estado).all()
+            
+            # Converter resultado para dicionário
+            leads_por_estado = {
+                estado or 'Não Informado': total 
+                for estado, total in resultado
+            }
+            
+            return leads_por_estado
+        except Exception as e:
+            print(f"Erro ao contar leads por estado: {e}")
+            return {}

@@ -120,20 +120,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    """Rota principal do dashboard"""
-    # Inicializar variáveis padrão
-    total_leads = 0
-    total_vendas = 0
-    leads_nao_iniciados = 0
-    leads_em_andamento = 0
-    leads_fechados = 0
-    total_times = 0
-    leads_recentes = []
-    membros_time = []
-    leads_por_estagio = {}
-
     try:
-        # Inicializar repositórios
         lead_repo = LeadRepositorio(get_sessao())
         time_repo = TimeRepositorio(get_sessao())
 
@@ -154,19 +141,46 @@ def index():
         
         # Buscar leads por estágio
         leads_por_estagio = lead_repo.agrupar_leads_por_status()
+        leads_recentes = lead_repo.listar_leads_recentes(5)
+
+        # Buscar dados de leads por estado e agrupar por região
+        leads_por_estado = lead_repo.contar_leads_por_estado()
         
-        # Calcular leads por estágio
-        leads_nao_iniciados = leads_por_estagio.get('Não Iniciado', 0)
-        leads_em_andamento = sum([
-            leads_por_estagio.get('Enviado Email', 0),
-            leads_por_estagio.get('Sem retorno Email', 0),
-            leads_por_estagio.get('Retorno Agendado', 0),
-            leads_por_estagio.get('Linkedin', 0),
-            leads_por_estagio.get('Sem Retorno Linkedin', 0),
-            leads_por_estagio.get('WhatsApp', 0),
-            leads_por_estagio.get('Sem Retorno WhatsApp', 0)
-        ])
-        leads_fechados = leads_por_estagio.get('Email Despedida', 0)
+        # Definir regiões e seus estados
+        regioes = {
+            'Norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+            'Nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+            'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+            'Sudeste': ['ES', 'MG', 'RJ', 'SP'],
+            'Sul': ['PR', 'RS', 'SC']
+        }
+        
+        # Calcular total de leads por região
+        leads_por_regiao = {regiao: 0 for regiao in regioes.keys()}
+        for estado, quantidade in leads_por_estado.items():
+            if estado != 'Não Informado':
+                for regiao, estados in regioes.items():
+                    if estado in estados:
+                        leads_por_regiao[regiao] += quantidade
+                        break
+
+        # Criar dicionário com nomes completos dos estados
+        nomes_estados = {
+            'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas', 'BA': 'Bahia',
+            'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo', 'GO': 'Goiás',
+            'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul', 'MG': 'Minas Gerais',
+            'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná', 'PE': 'Pernambuco', 'PI': 'Piauí',
+            'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte', 'RS': 'Rio Grande do Sul',
+            'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina', 'SP': 'São Paulo',
+            'SE': 'Sergipe', 'TO': 'Tocantins'
+        }
+
+        # Formatar dados de estado para o gráfico
+        leads_por_estado_formatado = {
+            nomes_estados.get(estado, estado): quantidade 
+            for estado, quantidade in leads_por_estado.items() 
+            if estado != 'Não Informado' and quantidade > 0
+        }
         
         # Buscar membros do time
         membros_time = time_repo.listar_membros()
@@ -174,66 +188,27 @@ def index():
         # Contar times
         total_times = time_repo.contar_total_times()
         
-        # Buscar leads recentes
-        leads_recentes = lead_repo.listar_leads_recentes(5)
-        
         # Atualizar estatísticas de membros
         for membro in membros_time:
             membro['leads'] = lead_repo.contar_leads_por_vendedor(membro['id'])
             membro['vendas'] = lead_repo.contar_vendas_por_vendedor(membro['id'])
-        
-        # Log de depuração
-        app.logger.info(f"Total de Leads: {total_leads}")
-        app.logger.info(f"Total de Vendas: {total_vendas}")
-        app.logger.info(f"Leads não iniciados: {leads_nao_iniciados}")
-        app.logger.info(f"Leads em andamento: {leads_em_andamento}")
-        app.logger.info(f"Leads fechados: {leads_fechados}")
-        app.logger.info(f"Total de Times: {total_times}")
-        app.logger.info(f"Membros do Time: {len(membros_time)}")
-        
-        # Renderizar template
+
         return render_template(
             'index.html', 
             total_leads=total_leads,
             total_vendas=total_vendas,
-            leads_nao_iniciados=leads_nao_iniciados,
-            leads_em_andamento=leads_em_andamento,
-            leads_fechados=leads_fechados,
             total_times=total_times,
             leads_recentes=leads_recentes,
             membros_time=membros_time,
-            leads_por_estagio=leads_por_estagio
+            leads_por_estagio=leads_por_estagio,
+            leads_por_regiao=leads_por_regiao,
+            leads_por_estado=leads_por_estado_formatado
         )
     
     except Exception as e:
-        # Log de erro detalhado
         app.logger.error(f"Erro no Dashboard: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Salvar log de erro
-        try:
-            with open('dashboard_error_log.txt', 'w') as log_file:
-                log_file.write(f"Erro no Dashboard: {e}\n\n")
-                log_file.write("Rastreamento de pilha completo:\n")
-                log_file.write(traceback.format_exc())
-        except Exception as log_error:
-            app.logger.error(f"Erro ao salvar log: {log_error}")
-        
-        # Renderizar template com dados padrão
-        flash('Erro ao carregar dados do dashboard. Verifique o log de erros.', 'danger')
-        return render_template(
-            'index.html', 
-            total_leads=total_leads,
-            total_vendas=total_vendas,
-            leads_nao_iniciados=leads_nao_iniciados,
-            leads_em_andamento=leads_em_andamento,
-            leads_fechados=leads_fechados,
-            total_times=total_times,
-            leads_recentes=leads_recentes,
-            membros_time=membros_time,
-            leads_por_estagio=leads_por_estagio
-        )
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
 
 @app.route('/time')
 @login_required
@@ -399,7 +374,29 @@ def kanban():
             leads = lead_repo.buscar_por_estagio(estagio)
             leads_por_estagio[estagio] = leads
         
-        return render_template('kanban.html', leads_por_estagio=leads_por_estagio, stages=estagios)
+        # Obter dados de leads por estado
+        leads_por_estado = lead_repo.contar_leads_por_estado()
+        
+        # Agrupar estados por região
+        regioes = {
+            'Norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+            'Nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+            'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+            'Sudeste': ['ES', 'MG', 'RJ', 'SP'],
+            'Sul': ['PR', 'RS', 'SC']
+        }
+        
+        leads_por_regiao = {regiao: 0 for regiao in regioes.keys()}
+        for estado, quantidade in leads_por_estado.items():
+            for regiao, estados in regioes.items():
+                if estado in estados:
+                    leads_por_regiao[regiao] += quantidade
+                    break
+        
+        return render_template('kanban.html', 
+                             leads_por_estagio=leads_por_estagio, 
+                             stages=estagios,
+                             leads_por_regiao=leads_por_regiao)
     except Exception as e:
         app.logger.error(f"Erro na rota kanban: {e}")
         flash('Erro ao carregar o quadro Kanban.', 'danger')

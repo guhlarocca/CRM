@@ -122,6 +122,22 @@
         {% endfor %}
     </div>
 
+    <!-- Gráfico de Leads por Região -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow" data-animation="animate__fadeInUp" data-delay="1100">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Leads por Região do Brasil</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px;">
+                        <canvas id="leadsRegionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Desempenho da Equipe -->
     <div class="card shadow mb-4" data-animation="animate__fadeInLeft" data-delay="900">
         <div class="card-header py-3">
@@ -199,10 +215,22 @@
                                 {% if lead['venda_fechada'] %}
                                 <span class="badge bg-success">Venda Fechada</span>
                                 {% else %}
-                                <span class="badge bg-warning text-dark">Em Andamento</span>
+                                <span class="badge bg-primary">{{ lead['estagio'] }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ lead['vendedor_nome'] }}</td>
+                            <td>
+                                {% if lead['vendedor'] %}
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ url_for('static', filename='profile_photos/' + lead['vendedor']['profile_photo']) }}" 
+                                             class="rounded-circle me-2" 
+                                             alt="{{ lead['vendedor']['nome'] }}"
+                                             style="width: 30px; height: 30px; object-fit: cover;">
+                                        <span>{{ lead['vendedor']['nome'] }}</span>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">Não atribuído</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -214,26 +242,86 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Garantir que a animação funcione mesmo em navegadores antigos
     document.addEventListener('DOMContentLoaded', function() {
+        // Código de animação
         const animatedElements = document.querySelectorAll('[data-animation]');
-        
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const delay = entry.target.getAttribute('data-delay') || 0;
-                    const animationClass = entry.target.getAttribute('data-animation') || 'animate__fadeIn';
-                    
-                    setTimeout(() => {
-                        entry.target.classList.add('animate__animated', animationClass);
-                    }, parseInt(delay));
-                }
-            });
-        }, { threshold: 0.1 });
-        
         animatedElements.forEach(element => {
-            observer.observe(element);
+            const animation = element.dataset.animation;
+            const delay = element.dataset.delay || 0;
+            
+            setTimeout(() => {
+                element.classList.add(animation);
+            }, delay);
+        });
+
+        // Gráfico de Leads por Região
+        const regionsData = {{ leads_por_regiao|tojson }};
+        
+        // Configuração das cores para cada região
+        const regionColors = {
+            'Norte': '#FF6B6B',
+            'Nordeste': '#4ECDC4',
+            'Centro-Oeste': '#45B7D1',
+            'Sudeste': '#96CEB4',
+            'Sul': '#FFEEAD'
+        };
+
+        // Criar o gráfico de barras
+        const ctx = document.getElementById('leadsRegionChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(regionsData),
+                datasets: [{
+                    label: 'Número de Leads',
+                    data: Object.values(regionsData),
+                    backgroundColor: Object.keys(regionsData).map(region => regionColors[region]),
+                    borderColor: Object.keys(regionsData).map(region => regionColors[region]),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Leads: ${context.raw}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: '#e9ecef'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
         });
     });
 </script>
