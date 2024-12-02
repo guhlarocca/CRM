@@ -1,24 +1,28 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from sqlalchemy import func, desc, inspect, text
 from database.conexao_supabase import ConexaoSupabase
 from database.repositorio import LeadRepositorio, TimeRepositorio
 from database.usuario_repositorio import UsuarioRepositorio
-from database.modelos import Lead, Time, Base, Usuario
-from datetime import datetime, timedelta
-import os
-import calendar
+from database.config_empresa_repositorio import ConfigEmpresaRepositorio
 from werkzeug.utils import secure_filename
-from sqlalchemy.orm import sessionmaker
 from functools import wraps
+import os
+from datetime import datetime as dt, timedelta
+import calendar
+import logging
+import traceback
+from flask_login import LoginManager, login_manager, login_user, logout_user, login_required, current_user
+from urllib.parse import urlparse
+import psycopg2
+from database.modelos import Lead, Time, Base, Usuario
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-import psycopg2
 
 # Carregar variáveis de ambiente
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv('SECRET_KEY', 'sua_chave_secreta_aqui')
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 app.config['SESSION_PERMANENT'] = True
@@ -28,121 +32,115 @@ app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Configuração para upload de arquivos
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'profile_photos')
+# Configuração do upload de arquivos
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'img')
 if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Configurar logging
-import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 app.logger.setLevel(logging.INFO)
 
+def allowed_file(filename):
+    """Verifica se a extensão do arquivo é permitida"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def save_uploaded_file(file, prefix=''):
+    """Função auxiliar para salvar arquivos enviados"""
+    if file and allowed_file(file.filename):
+        # Gerar nome único para o arquivo
+        timestamp = dt.now().strftime('%Y%m%d_%H%M%S')
+        filename = secure_filename(f"{prefix}_{timestamp}_{file.filename}" if prefix else f"{timestamp}_{file.filename}")
+        
+        # Garantir que o diretório existe
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        # Salvar arquivo
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        app.logger.info(f"Arquivo salvo em: {filepath}")
+        
+        return filename
+    return None
+
 def save_profile_photo(file):
-    if file and file.filename:
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-        unique_filename = timestamp + filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        return unique_filename
-    return 'default_profile.png'
+    return save_uploaded_file(file, prefix='perfil')
 
 # Conexão com o Supabase
 conexao = ConexaoSupabase()
+usuario_repo = UsuarioRepositorio()
+config_empresa_repo = ConfigEmpresaRepositorio()
 
 def get_conn():
-    return conexao.get_connection()
+    return conexao.get_conn()
 
 def get_cur(conn):
     return conn.cursor()
 
 def fechar_sessao(cur, conn):
-    try:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-    except Exception as e:
-        app.logger.error(f"Erro ao fechar sessão: {e}")
+    if cur:
+        cur.close()
+    if conn:
+        conn.close()
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     fechar_sessao(cur=None, conn=None)
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Por favor, faça login para acessar esta página.', 'warning')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+# Configuração do Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        usuario_repo = UsuarioRepositorio()
+        return usuario_repo.obter_por_id(user_id)
+    except Exception as e:
+        app.logger.error(f"Erro ao carregar usuário: {str(e)}")
+        return None
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         email = request.form.get('email')
         senha = request.form.get('senha')
         
-        if not email or not senha:
-            flash('Por favor, preencha todos os campos.', 'danger')
-            return redirect(url_for('login'))
-        
         try:
             usuario_repo = UsuarioRepositorio()
-            if usuario_repo.verificar_senha(email, senha):
-                usuario = usuario_repo.buscar_por_email(email)
-                # Definir informações na sessão
-                session['user_id'] = usuario['id']
-                session['user_name'] = usuario['nome']
-                session['user_email'] = usuario['email']
-                session['is_admin'] = usuario.get('is_admin', False)
-                session['profile_photo'] = usuario.get('profile_photo', 'default_profile.png')
-
-                logging.info(f"Login realizado: {usuario['nome']}")
-                flash('Login realizado com sucesso!', 'success')
-                return redirect(url_for('index'))
+            usuario = usuario_repo.login(email, senha)
+            if usuario:
+                login_user(usuario)
+                next_page = request.args.get('next')
+                if not next_page or urlparse(next_page).netloc != '':
+                    next_page = url_for('index')
+                return redirect(next_page)
             else:
-                flash('Email ou senha incorretos.', 'danger')
-                return redirect(url_for('login'))
-                
+                flash('Email ou senha inválidos', 'error')
         except Exception as e:
-            logging.error(f"Erro no login: {e}")
-            flash('Ocorreu um erro ao fazer login.', 'danger')
-            return redirect(url_for('login'))
+            app.logger.error(f"Erro no login: {str(e)}")
+            flash('Erro ao fazer login. Tente novamente.', 'error')
     
     return render_template('login.html')
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Você foi desconectado com sucesso.', 'success')
-    return redirect(url_for('login'))
-
 @app.route('/')
+@login_required
 def index():
     try:
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-
         time_repo = TimeRepositorio()
         lead_repo = LeadRepositorio()
-        usuario_repo = UsuarioRepositorio()
         
-        # Buscar dados do usuário
-        usuario = usuario_repo.buscar_por_id(session['user_id'])
-        if not usuario:
-            return redirect(url_for('login'))
-            
         # Buscar membros e leads
         membros = time_repo.listar_membros()
         leads = lead_repo.listar_leads()
-        
-        # Log para debug
-        logging.info(f"Número de membros: {len(membros)}")
-        logging.info(f"Número de leads: {len(leads)}")
         
         # Adicionar contagem de leads por vendedor
         for membro in membros:
@@ -167,7 +165,6 @@ def index():
             membros = time_repo.listar_membros()
 
         return render_template('index.html',
-                            usuario=usuario,
                             membros=membros,
                             membros_time=membros,  # alias para manter compatibilidade
                             leads=leads,
@@ -176,13 +173,18 @@ def index():
                             leads_por_estado=leads_por_estado,
                             leads_por_estagio=leads_por_estagio,
                             total_times=len(membros) if membros else 0,
-                            total_leads=len(leads),
-                            total_vendas=sum(membro['vendas'] for membro in membros))
+                            total_leads=len(leads) if leads else 0,
+                            total_vendas=sum(membro.get('vendas', 0) for membro in membros))
                             
     except Exception as e:
-        logging.error(f"Erro na rota principal: {e}", exc_info=True)
-        flash('Ocorreu um erro ao carregar a página', 'error')
+        app.logger.error(f"Erro ao renderizar index: {str(e)}")
         return redirect(url_for('login'))
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/time')
 @login_required
@@ -718,6 +720,169 @@ def debug_usuarios():
         })
     
     return jsonify(usuarios_info)
+
+@app.context_processor
+def inject_config():
+    """Injeta configurações da empresa em todos os templates"""
+    config = config_empresa_repo.obter_configuracao()
+    timestamp = dt.now().timestamp()
+    return dict(config=config, timestamp=timestamp)
+
+@app.route('/atualizar_logo', methods=['POST'])
+@login_required
+def atualizar_logo():
+    """Atualiza o logo da empresa"""
+    try:
+        app.logger.info("Iniciando atualização do logo")
+        # Verificar se há arquivo na requisição
+        if 'logo' not in request.files:
+            flash('Nenhum arquivo selecionado', 'error')
+            return redirect(url_for('config_empresa'))
+        
+        file = request.files['logo']
+        if file.filename == '':
+            flash('Nenhum arquivo selecionado', 'error')
+            return redirect(url_for('config_empresa'))
+
+        # Salvar arquivo
+        filename = save_uploaded_file(file, prefix='logo')
+        if not filename:
+            flash('Tipo de arquivo não permitido', 'error')
+            return redirect(url_for('config_empresa'))
+
+        # Atualizar banco de dados
+        updated_config = config_empresa_repo.atualizar_logo(filename)
+        
+        if updated_config:
+            app.logger.info(f"Logo atualizada com sucesso: {updated_config['logo_url']}")
+            flash('Logo atualizada com sucesso!', 'success')
+        else:
+            app.logger.error("Falha ao atualizar logo no banco de dados")
+            flash('Erro ao atualizar logo no banco de dados', 'error')
+            # Remove o arquivo se falhou ao atualizar o banco
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        
+        return redirect(url_for('config_empresa'))
+
+    except Exception as e:
+        app.logger.error(f'Erro ao atualizar logo: {str(e)}')
+        flash('Erro ao atualizar logo. Por favor, tente novamente.', 'error')
+        return redirect(url_for('config_empresa'))
+
+@app.route('/config_empresa')
+@login_required
+def config_empresa():
+    """Página de configurações da empresa"""
+    timestamp = dt.now().timestamp()
+    config = config_empresa_repo.obter_configuracao()
+    return render_template('config_empresa.html', timestamp=timestamp, config=config)
+
+@app.route('/atualizar_perfil', methods=['POST'])
+@login_required
+def atualizar_perfil():
+    try:
+        app.logger.info("Iniciando atualização de foto de perfil")
+        # Verificar se há arquivo na requisição
+        if 'profile_photo' not in request.files:
+            flash('Nenhum arquivo selecionado', 'error')
+            return redirect(url_for('config_empresa'))
+        
+        file = request.files['profile_photo']
+        if file.filename == '':
+            flash('Nenhum arquivo selecionado', 'error')
+            return redirect(url_for('config_empresa'))
+
+        # Salvar arquivo
+        filename = save_uploaded_file(file, prefix=f"perfil_{current_user.id}")
+        if not filename:
+            flash('Tipo de arquivo não permitido', 'error')
+            return redirect(url_for('config_empresa'))
+
+        # Atualizar banco de dados
+        updated_user = usuario_repo.atualizar_foto_perfil(current_user.id, filename)
+        
+        if updated_user:
+            app.logger.info(f"Usuário atualizado com sucesso: {updated_user.profile_photo}")
+            # Atualizar a sessão do usuário
+            current_user.profile_photo = updated_user.profile_photo
+            flash('Foto de perfil atualizada com sucesso!', 'success')
+        else:
+            app.logger.error("Falha ao atualizar usuário no banco de dados")
+            flash('Erro ao atualizar foto no banco de dados', 'error')
+            # Remove o arquivo se falhou ao atualizar o banco
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        
+        return redirect(url_for('config_empresa'))
+
+    except Exception as e:
+        app.logger.error(f'Erro ao atualizar foto de perfil: {str(e)}')
+        flash('Erro ao atualizar foto de perfil. Por favor, tente novamente.', 'error')
+        return redirect(url_for('config_empresa'))
+
+@app.route('/atualizar_config_empresa', methods=['POST'])
+@login_required
+def atualizar_config_empresa():
+    """Atualiza as configurações da empresa"""
+    try:
+        app.logger.info("Iniciando atualização de configurações da empresa")
+        # Obtém a configuração atual
+        config_atual = config_empresa_repo.obter_configuracao()
+        
+        # Processa a logo se foi enviada
+        logo_url = config_atual.get('logo_url') if config_atual else None
+        new_logo = None
+        
+        if 'logo' in request.files:
+            file = request.files['logo']
+            if file and file.filename != '':
+                # Salvar nova logo
+                new_logo = save_uploaded_file(file, prefix='logo')
+                if new_logo:
+                    logo_url = new_logo
+                else:
+                    flash('Tipo de arquivo não permitido para o logo', 'error')
+
+        # Coleta as configurações do formulário
+        config_data = {
+            'nome_sistema': request.form.get('nome_sistema', 'CRM Vendas'),
+            'logo_url': logo_url,
+            'primary_color': request.form.get('primary_color', '#1a1c20'),
+            'secondary_color': request.form.get('secondary_color', '#292d33'),
+            'accent_color': request.form.get('accent_color', '#00d9ff')
+        }
+        
+        # Atualiza as configurações
+        updated_config = config_empresa_repo.atualizar_configuracao(config_data)
+        if updated_config:
+            app.logger.info("Configurações atualizadas com sucesso")
+            flash('Configurações atualizadas com sucesso!', 'success')
+        else:
+            app.logger.error("Falha ao atualizar configurações")
+            flash('Erro ao atualizar configurações no banco de dados', 'error')
+            # Remove o arquivo de logo se foi feito upload mas falhou ao atualizar
+            if new_logo:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_logo)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+        
+    except Exception as e:
+        app.logger.error(f'Erro ao atualizar configurações: {str(e)}')
+        flash('Erro ao atualizar configurações. Por favor, tente novamente.', 'error')
+    
+    return redirect(url_for('config_empresa'))
+
+@app.after_request
+def add_header(response):
+    """Add headers to prevent caching"""
+    if 'Cache-Control' not in response.headers:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+    return response
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

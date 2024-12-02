@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações da Empresa{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Configurações da Empresa</h1>
+    </div>
+
+    <div class="row">
+        <!-- Coluna da Foto de Perfil -->
+        <div class="col-xl-6 col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Seu Perfil</h6>
+                </div>
+                <div class="card-body">
+                    <form id="profileForm" action="{{ url_for('atualizar_perfil') }}" method="POST" enctype="multipart/form-data" class="profile-upload">
+                        <div class="text-center mb-4">
+                            <img id="preview" 
+                                 src="{{ url_for('static', filename='img/' + current_user.profile_photo) if current_user.profile_photo else url_for('static', filename='img/default_profile.png') }}?t={{ timestamp }}"
+                                 class="profile-preview rounded-circle" 
+                                 alt="Foto de Perfil"
+                                 style="width: 150px; height: 150px; object-fit: cover;">
+                        </div>
+                             
+                        <div class="mb-3">
+                            <input type="file" 
+                                   class="form-control" 
+                                   name="profile_photo" 
+                                   id="profilePhoto"
+                                   accept="image/*">
+                        </div>
+                               
+                        <button type="submit" class="btn btn-primary w-100">
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" id="loading"></span>
+                            <span id="buttonText">Atualizar Foto</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card do Logo da Empresa -->
+        <div class="col-xl-6 col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Logo da Empresa</h6>
+                </div>
+                <div class="card-body">
+                    <form id="logoForm" action="{{ url_for('atualizar_logo') }}" method="POST" enctype="multipart/form-data">
+                        <div class="text-center mb-4">
+                            <img id="logoPreview" 
+                                 src="{{ url_for('static', filename='img/' + config.logo_url) if config and config.logo_url else url_for('static', filename='img/default_logo.png') }}?t={{ timestamp }}"
+                                 class="img-fluid" 
+                                 alt="Logo da Empresa"
+                                 style="max-width: 200px; max-height: 200px; object-fit: contain; background-color: #f8f9fc; padding: 15px; border-radius: 10px;">
+                        </div>
+                             
+                        <div class="mb-3">
+                            <input type="file" 
+                                   class="form-control" 
+                                   name="logo" 
+                                   id="logo"
+                                   accept="image/*"
+                                   onchange="previewLogo(this);">
+                        </div>
+                               
+                        <button type="submit" class="btn btn-primary w-100">
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" id="logoLoading"></span>
+                            <span id="logoButtonText">Atualizar Logo</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// Função para preview do logo
+function previewLogo(input) {
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        
+        reader.onload = function(e) {
+            document.getElementById('logoPreview').src = e.target.result;
+        }
+        
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const profileForm = document.getElementById('profileForm');
+    const logoForm = document.getElementById('logoForm');
+    const profilePhoto = document.getElementById('profilePhoto');
+    const preview = document.getElementById('preview');
+    
+    // Preview da foto de perfil
+    if (profilePhoto) {
+        profilePhoto.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                var reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                }
+                
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+    }
+
+    // Submissão do formulário de perfil
+    if (profileForm) {
+        profileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loading = document.getElementById('loading');
+            const buttonText = document.getElementById('buttonText');
+            loading.classList.remove('d-none');
+            buttonText.textContent = 'Atualizando...';
+
+            const formData = new FormData(this);
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(() => {
+                window.location.href = window.location.pathname + '?t=' + new Date().getTime();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                loading.classList.add('d-none');
+                buttonText.textContent = 'Atualizar Foto';
+                alert('Erro ao atualizar foto. Por favor, tente novamente.');
+            });
+        });
+    }
+
+    // Submissão do formulário de logo
+    if (logoForm) {
+        logoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loading = document.getElementById('logoLoading');
+            const buttonText = document.getElementById('logoButtonText');
+            loading.classList.remove('d-none');
+            buttonText.textContent = 'Atualizando...';
+
+            const formData = new FormData(this);
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(() => {
+                window.location.href = window.location.pathname + '?t=' + new Date().getTime();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                loading.classList.add('d-none');
+                buttonText.textContent = 'Atualizar Logo';
+                alert('Erro ao atualizar logo. Por favor, tente novamente.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
