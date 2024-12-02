@@ -59,6 +59,7 @@
 
         .sidebar-logo {
             display: flex;
+            flex-direction: column;
             align-items: center;
             padding: 20px;
             text-align: center;
@@ -68,27 +69,18 @@
         }
 
         .sidebar-logo img {
-            max-height: 45px;
-            max-width: 45px;
+            max-height: 55px;
+            max-width: 55px;
             object-fit: contain;
-            margin-right: 10px;
-        }
-
-        .sidebar-logo h3 {
-            margin: 0;
-            font-size: 1.25rem;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex: 1;
+            margin-bottom: 12px;
         }
 
         .logo-text {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             font-weight: 600;
             transition: opacity 0.3s ease;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
         }
 
         .sidebar-toggle {
@@ -170,12 +162,23 @@
         }
 
         .user-section {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .user-info {
             display: flex;
             align-items: center;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            margin: 10px;
+            margin-bottom: 10px;
         }
 
         .profile-photo {
@@ -184,62 +187,80 @@
             border-radius: 50%;
             object-fit: cover;
             margin-right: 10px;
-            border: 2px solid #fff;
+            border: 2px solid var(--accent-color);
             background: #f0f0f0;
         }
 
         .user-details {
             flex-grow: 1;
-            margin-right: 10px;
         }
 
         .user-name {
-            font-weight: bold;
+            font-weight: 600;
             margin: 0;
-            color: #fff;
+            color: var(--text-primary);
+            font-size: 0.95rem;
         }
 
         .user-email {
-            font-size: 0.8em;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
             margin: 0;
-            color: #ddd;
+            opacity: 0.8;
         }
 
-        .btn-dark {
-            background-color: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-primary);
-            padding: 5px 10px;
-            font-size: 12px;
-            transition: all 0.3s;
+        .user-role {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin: 0;
         }
 
-        .btn-dark:hover {
-            background-color: rgba(0, 0, 0, 0.5);
-            color: var(--accent-color);
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            width: 100%;
+            color: #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            margin-top: 5px;
         }
 
-        /* Estilos para quando a sidebar está colapsada */
-        .sidebar.collapsed .user-details {
-            text-align: center;
-            padding-left: 0;
+        .logout-btn:hover {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+
+        .sidebar.collapsed .user-section {
+            padding: 10px;
+        }
+
+        .sidebar.collapsed .user-info {
+            justify-content: center;
+            margin-bottom: 5px;
         }
 
         .sidebar.collapsed .profile-photo {
-            width: 45px;
-            height: 45px;
-            margin: 0 auto;
+            margin-right: 0;
         }
 
-        .sidebar.collapsed .user-name,
-        .sidebar.collapsed .user-email,
-        .sidebar.collapsed .logout-btn,
-        .sidebar.collapsed .user-details > div > div {
+        .sidebar.collapsed .user-details,
+        .sidebar.collapsed .user-role {
             display: none;
         }
 
-        .sidebar.collapsed .user-details > div {
+        .sidebar.collapsed .logout-btn {
+            padding: 8px;
             justify-content: center;
+        }
+
+        .sidebar.collapsed .logout-btn span {
+            display: none;
         }
 
         .main-content {
@@ -293,9 +314,9 @@
             {% if config and config.logo_url %}
             <img src="{{ url_for('static', filename='img/' + config.logo_url) }}?t={{ timestamp }}" 
                  alt="{{ config.nome_sistema }}"
-                 style="max-height: 45px; max-width: 100%; margin-right: 10px; object-fit: contain;">
+                 style="max-height: 55px; max-width: 100%; object-fit: contain;">
             {% endif %}
-            <h3 class="text-white">{{ config.nome_sistema if config and config.nome_sistema else 'CRM Vendas' }}</h3>
+            <h3 class="logo-text">{{ config.nome_sistema if config and config.nome_sistema else 'CRM Vendas' }}</h3>
             <button class="sidebar-toggle" onclick="toggleSidebar()">
                 <i class="fas fa-chevron-left"></i>
             </button>
@@ -328,14 +349,17 @@
         <!-- Informações do Usuário no Rodapé -->
         {% if current_user.is_authenticated %}
         <div class="user-section">
-            <img src="{{ url_for('static', filename='img/' + current_user.profile_photo) if current_user.profile_photo else url_for('static', filename='img/default_profile.png') }}?v={{ current_user.profile_photo }}" 
-                 alt="Foto de Perfil"
-                 class="profile-photo">
-            <div class="user-details">
-                <p class="user-name">{{ current_user.nome }}</p>
-                <p class="user-email">{{ current_user.email }}</p>
+            <div class="user-info">
+                <img src="{{ url_for('static', filename='img/' + current_user.profile_photo) if current_user.profile_photo else url_for('static', filename='img/default_profile.png') }}?v={{ current_user.profile_photo }}" 
+                     alt="Foto de Perfil"
+                     class="profile-photo">
+                <div class="user-details">
+                    <p class="user-name">{{ current_user.nome }}</p>
+                    <p class="user-email">{{ current_user.email }}</p>
+                    <p class="user-role">{{ current_user.role }}</p>
+                </div>
             </div>
-            <a href="/logout" class="btn btn-sm btn-dark">
+            <a href="/logout" class="logout-btn">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Sair</span>
             </a>
