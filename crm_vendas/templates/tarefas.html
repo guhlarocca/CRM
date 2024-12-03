@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="mb-4">Gerenciamento de Tarefas</h2>
+            
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <select class="form-select" id="filtroVendedor" onchange="filtrarTarefas()">
+                            <option value="">Todos os Vendedores</option>
+                            {% for vendedor in vendedores %}
+                            <option value="{{ vendedor['id'] }}">{{ vendedor['nome'] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#novaTarefaModal">
+                        <i class="fas fa-plus"></i> Nova Tarefa
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal de Nova Tarefa -->
+            <div class="modal fade" id="novaTarefaModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Nova Tarefa</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="formNovaTarefa" action="{{ url_for('criar_tarefa') }}" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Vendedor</label>
+                                    <select class="form-select" name="id_vendedor" required>
+                                        <option value="">Selecione um vendedor</option>
+                                        {% for vendedor in vendedores %}
+                                        <option value="{{ vendedor['id'] }}">{{ vendedor['nome'] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Descrição</label>
+                                    <textarea class="form-control" name="descricao" rows="3" required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Status</label>
+                                    <select class="form-select" name="status" required>
+                                        <option value="pendente">Pendente</option>
+                                        <option value="concluida">Concluída</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Prioridade</label>
+                                    <select class="form-select" name="prioridade" required>
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media">Média</option>
+                                        <option value="alta">Alta</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" form="formNovaTarefa">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Tarefas Pendentes -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-tasks"></i> Tarefas Pendentes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Vendedor</th>
+                                    <th>Descrição</th>
+                                    <th>Status</th>
+                                    <th>Prioridade</th>
+                                    <th>Data Criação</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tarefa in tarefas %}
+                                {% if tarefa['status'] != 'concluida' %}
+                                <tr data-vendedor-id="{{ tarefa['id_vendedor'] }}">
+                                    <td>{{ tarefa['id'] }}</td>
+                                    <td>{{ tarefa['nome_vendedor'] }}</td>
+                                    <td>{{ tarefa['descricao'] }}</td>
+                                    <td>
+                                        <span class="badge {% if tarefa['status'] == 'Em Andamento' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                            {{ tarefa['status'] }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if tarefa['prioridade'] == 'alta' %}bg-danger{% elif tarefa['prioridade'] == 'media' %}bg-warning{% else %}bg-info{% endif %}">
+                                            {{ tarefa['prioridade']|title }}
+                                        </span>
+                                    </td>
+                                    <td>{{ tarefa['data_criacao']|default('') }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-success" onclick="concluirTarefa('{{ tarefa['id'] }}')">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="excluirTarefa('{{ tarefa['id'] }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Tarefas Concluídas -->
+            <div class="card mt-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle"></i> Tarefas Concluídas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Vendedor</th>
+                                    <th>Descrição</th>
+                                    <th>Prioridade</th>
+                                    <th>Data Criação</th>
+                                    <th>Data Conclusão</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tarefa in tarefas %}
+                                {% if tarefa['status'] == 'concluida' %}
+                                <tr data-vendedor-id="{{ tarefa['id_vendedor'] }}">
+                                    <td>{{ tarefa['id'] }}</td>
+                                    <td>{{ tarefa['nome_vendedor'] }}</td>
+                                    <td>{{ tarefa['descricao'] }}</td>
+                                    <td>
+                                        <span class="badge {% if tarefa['prioridade'] == 'alta' %}bg-danger{% elif tarefa['prioridade'] == 'media' %}bg-warning{% else %}bg-info{% endif %}">
+                                            {{ tarefa['prioridade']|title }}
+                                        </span>
+                                    </td>
+                                    <td>{{ tarefa['data_criacao']|default('') }}</td>
+                                    <td>{{ tarefa['data_conclusao']|default('') }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" onclick="excluirTarefa('{{ tarefa['id'] }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast de Notificação -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="notificationToast" class="toast" role="alert">
+        <div class="toast-header">
+            <strong class="me-auto">Notificação</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showNotification(message, success = true) {
+        const toast = document.getElementById('notificationToast');
+        toast.querySelector('.toast-body').textContent = message;
+        toast.querySelector('.toast-header').className = `toast-header ${success ? 'bg-success' : 'bg-danger'} text-white`;
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    function concluirTarefa(tarefaId) {
+        if (confirm('Deseja realmente concluir esta tarefa?')) {
+            fetch('/atualizar_status_tarefa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `tarefa_id=${tarefaId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Tarefa concluída com sucesso!');
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao concluir tarefa');
+            });
+        }
+    }
+
+    function excluirTarefa(tarefaId) {
+        if (confirm('Deseja realmente excluir esta tarefa?')) {
+            fetch('/excluir_tarefa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `tarefa_id=${tarefaId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Tarefa excluída com sucesso!');
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao excluir tarefa');
+            });
+        }
+    }
+
+    function filtrarTarefas() {
+        const filtroVendedor = document.getElementById('filtroVendedor');
+        const vendedorId = filtroVendedor.value;
+        const tarefas = document.querySelectorAll('tbody tr');
+
+        if (vendedorId === '') {
+            tarefas.forEach(tr => tr.style.display = '');
+        } else {
+            tarefas.forEach(tr => {
+                if (tr.dataset.vendedorId === vendedorId) {
+                    tr.style.display = '';
+                } else {
+                    tr.style.display = 'none';
+                }
+            });
+        }
+    }
+</script>
+{% endblock %}

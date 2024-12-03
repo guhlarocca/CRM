@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Ocultar campo de busca padrão do DataTables */
+    .dataTables_wrapper .dataTables_filter {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Leads</li>
+        </ol>
+    </nav>
+
+    <!-- Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Leads Cadastrados</h2>
+            <p class="text-muted mb-0">Gerenciamento e acompanhamento de leads</p>
+        </div>
+        <a href="/leads/novo" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Novo Lead
+        </a>
+    </div>
+
+    <!-- Leads Card -->
+    <div class="card shadow mb-4" data-animation="animate__fadeInUp" data-delay="300">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Leads</h6>
+            <div class="input-group mt-2" style="max-width: 300px;">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="searchLead" class="form-control" placeholder="Pesquisar lead por nome...">
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Empresa</th>
+                            <th>Cargo</th>
+                            <th>Vendedor</th>
+                            <th>Estágio</th>
+                            <th>Última Interação</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // Inicializar DataTable com otimizações de performance
+        var table = $('#dataTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json"
+            },
+            "pageLength": -1, // Mostrar todos os registros
+            "lengthChange": false,
+            "processing": true,
+            "serverSide": false,
+            "ajax": {
+                "url": "/api/leads",
+                "type": "GET",
+                "dataSrc": ""
+            },
+            "columns": [
+                { "data": "id" },
+                { "data": "nome" },
+                { "data": "email" },
+                { "data": "telefone" },
+                { "data": "empresa" },
+                { "data": "cargo" },
+                { 
+                    "data": "vendedor_nome", 
+                    "defaultContent": "Sem vendedor" 
+                },
+                { "data": "estagio_atual" },
+                { 
+                    "data": "data_criacao",
+                    "render": function(data) {
+                        return data ? new Date(data).toLocaleDateString('pt-BR') : '';
+                    }
+                },
+                {
+                    "data": "id",
+                    "render": function(data, type, row) {
+                        return `
+                            <div class="btn-group" role="group">
+                                <a href="/leads/editar/${data}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button onclick="excluirLead(${data})" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            ],
+            "order": [[1, 'asc']], // Ordenar por nome por padrão
+            // Configurar pesquisa personalizada
+            "search": {
+                "smart": false,
+                "caseInsensitive": true
+            }
+        });
+
+        // Função de pesquisa personalizada que busca em qualquer parte do nome
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            var searchText = $('#searchLead').val().toLowerCase();
+            if (!searchText) return true;  // Se não há texto de busca, mostra todas as linhas
+            
+            var nome = data[1].toLowerCase(); // O nome está na coluna 1
+            return nome.indexOf(searchText) !== -1;
+        });
+
+        // Configurar pesquisa
+        $('#searchLead').on('keyup', function() {
+            table.draw();
+        });
+    });
+
+    function excluirLead(leadId) {
+        if (confirm('Tem certeza que deseja excluir este lead?')) {
+            window.location.href = `/leads/excluir/${leadId}`;
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+<div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Alterar Vendedor</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <form id="formAlterarVendedor">
+                <input type="hidden" id="leadId" name="leadId" value="{{ lead.id }}">
+                <div class="mb-3">
+                    <label for="vendedorId" class="form-label">Selecione o Vendedor</label>
+                    <select class="form-select" id="vendedorId" name="vendedorId" required>
+                        <option value="">Selecione...</option>
+                        {% for vendedor in vendedores %}
+                        <option value="{{ vendedor.id }}" {% if lead.vendedor_id == vendedor.id %}selected{% endif %}>
+                            {{ vendedor.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="atualizarVendedor()">Atualizar</button>
+        </div>
+    </div>
+</div>

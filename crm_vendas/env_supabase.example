@@ -1,0 +1,3 @@
+SUPABASE_URL=sua_url_do_projeto
+SUPABASE_KEY=sua_chave_api_do_projeto
+DATABASE_URL=postgresql://postgres:[DATABASE-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres

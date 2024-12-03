@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Kanban</li>
+        </ol>
+    </nav>
+
+    <!-- Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Kanban de Leads</h2>
+            <p class="text-muted mb-0">Visualização e gerenciamento do fluxo de vendas</p>
+        </div>
+        <a href="{{ url_for('novo_lead') }}" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Novo Lead
+        </a>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-board row flex-nowrap overflow-auto pb-3">
+        {% for stage in stages %}
+        <div class="col">
+            <div class="card shadow-sm mb-1">
+                <div class="stage-counter">
+                    <span class="stage-name">{{ stage }}</span>
+                    <span class="badge bg-primary">{{ leads_por_estagio[stage]|length }}</span>
+                </div>
+                <div class="card-body p-1 kanban-column" data-stage="{{ stage }}">
+                    {% for lead in leads_por_estagio[stage] %}
+                    <div class="card mb-1 lead-card" data-lead-id="{{ lead.id }}">
+                        <div class="card-body p-2">
+                            <div class="d-flex flex-column">
+                                <h6 class="card-title mb-1 text-truncate">{{ lead.nome }}</h6>
+                                <p class="card-text small text-muted mb-1 text-truncate">
+                                    {{ lead.empresa if lead.empresa else 'Empresa não informada' }}
+                                </p>
+                                <div class="d-flex align-items-center">
+                                    {% if lead.vendedor %}
+                                        {% if lead.vendedor.profile_photo %}
+                                            <img src="{{ url_for('static', filename='team_photos/' + lead.vendedor.profile_photo) }}" 
+                                                 alt="{{ lead.vendedor.nome }}"
+                                                 class="rounded-circle" 
+                                                 style="width: 20px; height: 20px; object-fit: cover; margin-right: 6px;">
+                                        {% else %}
+                                            <img src="{{ url_for('static', filename='team_photos/default_profile.png') }}" 
+                                                 alt="{{ lead.vendedor.nome }}"
+                                                 class="rounded-circle" 
+                                                 style="width: 20px; height: 20px; object-fit: cover; margin-right: 6px;">
+                                        {% endif %}
+                                        <small class="text-muted text-truncate">{{ lead.vendedor.nome }}</small>
+                                    {% else %}
+                                        <img src="{{ url_for('static', filename='team_photos/default_profile.png') }}" 
+                                             alt="Vendedor não atribuído"
+                                             class="rounded-circle" 
+                                             style="width: 20px; height: 20px; object-fit: cover; margin-right: 6px;">
+                                        <small class="text-muted text-truncate">Não atribuído</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Toast para notificações -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Notificação</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kanban-board {
+        margin: 0;
+        overflow-x: auto;
+        display: flex;
+        padding: 0.25rem;
+        gap: 0.25rem;
+    }
+    .kanban-column {
+        min-height: 30px;
+        max-height: calc(100vh - 200px);
+        overflow-y: auto;
+    }
+    .col {
+        padding: 0;
+        flex: 0 0 150px;
+        max-width: 150px;
+        transition: all 0.3s ease;
+    }
+    .col:has(.kanban-column:empty) {
+        flex: 0 0 120px;
+        max-width: 120px;
+    }
+    .lead-card {
+        cursor: grab;
+        transition: transform 0.15s;
+        background-color: white;
+        font-size: 0.75rem;
+        border: 1px solid rgba(0,0,0,.125);
+        margin-bottom: 0.25rem;
+    }
+    .kanban-column:empty {
+        min-width: 110px;
+    }
+    .lead-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0.1rem 0.5rem 0 rgba(58, 59, 69, 0.1);
+    }
+    .lead-card.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+    .card-title {
+        font-size: 0.75rem;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+    .card-body {
+        padding: 0.3rem;
+    }
+    
+    /* Estilo para o contador e cabeçalho do estágio */
+    .stage-counter {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.3rem 0.4rem;
+        background-color: #f8f9fc;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+    }
+    .stage-counter .badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        background-color: #4e73df !important;
+    }
+    .stage-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4e73df;
+    }
+    
+    /* Scrollbar personalizado */
+    .kanban-board::-webkit-scrollbar {
+        height: 6px;
+    }
+    .kanban-column::-webkit-scrollbar {
+        width: 4px;
+    }
+    .kanban-board::-webkit-scrollbar-track,
+    .kanban-column::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    .kanban-board::-webkit-scrollbar-thumb,
+    .kanban-column::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+    .kanban-board::-webkit-scrollbar-thumb:hover,
+    .kanban-column::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    /* Efeito de hover na coluna */
+    .kanban-column.drag-over {
+        background-color: rgba(78, 115, 223, 0.05);
+    }
+    
+    /* Ajustes responsivos */
+    @media (min-width: 1200px) {
+        .col {
+            flex: 0 0 160px;
+            max-width: 160px;
+        }
+        .col:has(.kanban-column:empty) {
+            flex: 0 0 130px;
+            max-width: 130px;
+        }
+    }
+    @media (min-width: 1400px) {
+        .col {
+            flex: 0 0 170px;
+            max-width: 170px;
+        }
+        .col:has(.kanban-column:empty) {
+            flex: 0 0 140px;
+            max-width: 140px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Adicionar Sortable.js -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar todas as colunas como Sortable
+    const columns = document.querySelectorAll('.kanban-column');
+    columns.forEach(column => {
+        new Sortable(column, {
+            group: 'leads',
+            animation: 150,
+            ghostClass: 'dragging',
+            dragClass: 'dragging',
+            onEnd: function(evt) {
+                const leadId = evt.item.dataset.leadId;
+                const newStage = evt.to.dataset.stage;
+                const oldStage = evt.from.dataset.stage;
+                
+                if (newStage !== oldStage) {
+                    updateLeadStage(leadId, newStage);
+                }
+            }
+        });
+    });
+
+    function updateLeadStage(leadId, newStage) {
+        fetch(`/leads/${leadId}/update_stage`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                estagio: newStage
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Lead atualizado com sucesso!', 'success');
+                updateCounters();
+            } else {
+                showNotification('Erro ao atualizar o lead: ' + data.error, 'error');
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        })
+        .catch(error => {
+            showNotification('Erro ao atualizar o lead: ' + error, 'error');
+            setTimeout(() => window.location.reload(), 2000);
+        });
+    }
+
+    function updateCounters() {
+        columns.forEach(column => {
+            const counter = column.closest('.card').querySelector('.badge');
+            const leadCount = column.querySelectorAll('.lead-card').length;
+            counter.textContent = leadCount;
+        });
+    }
+
+    function showNotification(message, type) {
+        const toast = document.getElementById('notificationToast');
+        const toastBody = toast.querySelector('.toast-body');
+        
+        toastBody.textContent = message;
+        toast.classList.remove('bg-success', 'bg-danger');
+        toast.classList.add(type === 'success' ? 'bg-success' : 'bg-danger');
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // Adicionar evento de duplo clique para edição
+    const leadCards = document.querySelectorAll('.lead-card');
+    leadCards.forEach(card => {
+        card.addEventListener('dblclick', function() {
+            const leadId = this.dataset.leadId;
+            window.location.href = `/editar_lead/${leadId}`;
+        });
+    });
+});
+</script>
+{% endblock %}

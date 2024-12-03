@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambiente virtual
+venv/
+env/
+.env/
+.venv/
+
+# Banco de dados local
+*.sqlite
+*.db
+
+# Arquivos de log
+*.log
+dashboard_error_log.txt
+
+# Arquivos de configuração local
+.env
+config.ini
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos de perfil de foto
+static/profile_photos/*
+!static/profile_photos/default_profile.png
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Dependências
+requirements.txt

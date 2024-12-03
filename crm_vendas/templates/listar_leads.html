@@ -1,0 +1,93 @@
+{% extends "base_new.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#" class="text-muted">CRM</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Leads</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Leads</h6>
+            <div>
+                <a href="{{ url_for('novo_lead') }}" class="btn btn-primary btn-sm mr-2">
+                    <i class="fas fa-plus mr-2"></i>Novo Lead
+                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Filtrar por Estágio
+                    </button>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="{{ url_for('listar_leads') }}">Todos os Leads</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item {% if estagio_filtro == 'Não Iniciado' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Não Iniciado') }}">Não Iniciado</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Enviado Email' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Enviado Email') }}">Enviado Email</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Sem retorno Email' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Sem retorno Email') }}">Sem retorno Email</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Retorno Agendado' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Retorno Agendado') }}">Retorno Agendado</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Linkedin' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Linkedin') }}">Linkedin</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Sem Retorno Linkedin' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Sem Retorno Linkedin') }}">Sem Retorno Linkedin</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'WhatsApp' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='WhatsApp') }}">WhatsApp</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Sem Retorno WhatsApp' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Sem Retorno WhatsApp') }}">Sem Retorno WhatsApp</a>
+                        <a class="dropdown-item {% if estagio_filtro == 'Email Despedida' %}active{% endif %}" href="{{ url_for('listar_leads', estagio='Email Despedida') }}">Email Despedida</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if estagio_filtro %}
+            <div class="alert alert-info" role="alert">
+                Mostrando leads no estágio: <strong>{{ estagio_filtro }}</strong>
+            </div>
+            {% endif %}
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Empresa</th>
+                            <th>Estágio Atual</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in leads %}
+                        <tr>
+                            <td>{{ lead.nome }}</td>
+                            <td>{{ lead.email }}</td>
+                            <td>{{ lead.telefone }}</td>
+                            <td>{{ lead.empresa or 'Não informado' }}</td>
+                            <td>{{ lead.estagio_atual }}</td>
+                            <td>
+                                <a href="{{ url_for('editar_lead', lead_id=lead.id) }}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{{ url_for('excluir_lead', lead_id=lead.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza que deseja excluir este lead?')">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#dataTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json"
+            }
+        });
+    });
+</script>
+{% endblock %}

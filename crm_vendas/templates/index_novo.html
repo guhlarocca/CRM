@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ... (código anterior igual) ... -->
+
+    <!-- Leads por Estágio -->
+    <div class="row">
+        {% for estagio, quantidade in leads_por_estagio.items() %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-{{ 'success' if 'Agendado' in estagio else 'primary' }} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-{{ 'success' if 'Agendado' in estagio else 'primary' }} text-uppercase mb-1">{{ estagio }}</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ quantidade }}</div>
+                        </div>
+                        <div class="col-auto">
+                            {% if estagio == 'Enviado Email' %}
+                            <i class="fas fa-paper-plane fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Sem retorno Email' %}
+                            <i class="fas fa-envelope-open fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Retorno Agendado' %}
+                            <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Linkedin' %}
+                            <i class="fab fa-linkedin fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Sem Retorno Linkedin' %}
+                            <i class="fab fa-linkedin-in fa-2x text-gray-300"></i>
+                            {% elif estagio == 'WhatsApp' %}
+                            <i class="fab fa-whatsapp fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Sem Retorno WhatsApp' %}
+                            <i class="fas fa-comment-slash fa-2x text-gray-300"></i>
+                            {% elif estagio == 'Email Despedida' %}
+                            <i class="fas fa-handshake fa-2x text-gray-300"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+<!-- ... (resto do código igual) ... -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Configuração do gráfico de leads
+    const ctx = document.getElementById('leadsChart')?.getContext('2d');
+    if (ctx) {
+        const diasMes = {{ dias_mes|default([])|tojson|safe }};
+        const leadsPorDia = {{ leads_por_dia|default([])|tojson|safe }};
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: diasMes,
+                datasets: [{
+                    label: 'Leads por Dia',
+                    data: leadsPorDia,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
