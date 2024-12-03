@@ -4,8 +4,13 @@ set -o errexit
 
 # Instalar dependências do sistema necessárias para o psycopg2
 apt-get update
-apt-get install -y python3-dev libpq-dev build-essential
+apt-get install -y \
+    postgresql-server-dev-all \
+    gcc \
+    python3-dev
+
+# Limpar cache do pip
+pip cache purge
 
 # Instalar dependências Python
-pip install --upgrade pip
-pip install -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
