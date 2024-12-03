@@ -1,10 +1,11 @@
 import os
 import sys
 
-# Add the project directory to the Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Adiciona o diretório atual ao path do Python
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
-from crm_vendas.app import app
+from app import app
 
 if __name__ == "__main__":
     app.run()
