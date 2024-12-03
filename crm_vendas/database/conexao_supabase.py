@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import logging
 import sys
+import importlib.util
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -12,11 +13,29 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
-try:
-    import psycopg2
-    from psycopg2 import Error as PsycopgError
-except Exception as e:
-    logger.error(f"Erro ao importar psycopg2: {str(e)}")
+def import_psycopg2():
+    """Importa o psycopg2 de forma segura"""
+    try:
+        # Tenta importar psycopg2 primeiro
+        if importlib.util.find_spec("psycopg2") is not None:
+            import psycopg2
+            return psycopg2
+        else:
+            logger.warning("psycopg2 não encontrado, tentando psycopg2-binary")
+            # Se não encontrar, tenta o psycopg2-binary
+            if importlib.util.find_spec("psycopg2-binary") is not None:
+                import psycopg2
+                return psycopg2
+            else:
+                raise ImportError("Nem psycopg2 nem psycopg2-binary foram encontrados")
+    except Exception as e:
+        logger.error(f"Erro ao importar psycopg2: {str(e)}")
+        return None
+
+# Importar psycopg2
+psycopg2 = import_psycopg2()
+if psycopg2 is None:
+    logger.error("Não foi possível importar psycopg2. Verifique a instalação.")
     sys.exit(1)
 
 class ConexaoSupabase:
@@ -34,20 +53,24 @@ class ConexaoSupabase:
             'dbname': os.getenv('DB_NAME', 'postgres'),
             'user': os.getenv('DB_USER'),
             'password': os.getenv('DB_PASS'),
-            'client_encoding': 'LATIN1'
+            'client_encoding': 'UTF8'  # Mudando para UTF8
         }
 
     def get_connection(self):
         """Retorna uma conexão direta do psycopg2"""
         try:
             logger.info(f"Tentando conectar em: {self.db_config['host']}:{self.db_config['port']} como {self.db_config['user']}")
-            return psycopg2.connect(**self.db_config)
-        except PsycopgError as e:
-            logger.error(f"Erro detalhado ao criar conexão: {e}")
-            logger.error(f"Configurações de conexão: {self.db_config}")
-            return None
+            conn = psycopg2.connect(
+                dbname=self.db_config['dbname'],
+                user=self.db_config['user'],
+                password=self.db_config['password'],
+                host=self.db_config['host'],
+                port=self.db_config['port']
+            )
+            conn.set_client_encoding('UTF8')
+            return conn
         except Exception as e:
-            logger.error(f"Erro inesperado ao criar conexão: {e}")
+            logger.error(f"Erro ao criar conexão: {str(e)}")
             return None
 
     def get_session(self):
@@ -59,7 +82,7 @@ class ConexaoSupabase:
             else:
                 raise Exception("Conexão não estabelecida")
         except Exception as e:
-            logger.error(f"Erro ao criar sessão: {e}")
+            logger.error(f"Erro ao criar sessão: {str(e)}")
             return None
 
 def criar_cliente_supabase():
@@ -67,21 +90,8 @@ def criar_cliente_supabase():
     Cria e retorna um cliente Supabase para operações de banco de dados
     """
     try:
-        from supabase import create_client, Client
-        
-        # Carregar variáveis de ambiente
-        url = os.getenv('SUPABASE_URL')
-        key = os.getenv('SUPABASE_KEY')
-        
-        if not url or not key:
-            raise ValueError("Variáveis SUPABASE_URL e SUPABASE_KEY são necessárias")
-        
-        supabase: Client = create_client(url, key)
+        supabase = ConexaoSupabase()
         return supabase
-    
-    except ImportError:
-        logger.error("Biblioteca supabase não instalada. Instale com: pip install supabase")
-        return None
     except Exception as e:
-        logger.error(f"Erro ao criar cliente Supabase: {e}")
+        logger.error(f"Erro ao criar cliente Supabase: {str(e)}")
         return None
