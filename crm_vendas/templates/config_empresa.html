@@ -130,20 +130,19 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Card para convidar usuários -->
-        <div class="col-xl-6 col-lg-6">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Convidar Usuário</h6>
-                </div>
-                <div class="card-body">
-                    <p class="mb-4">Convide novos usuários para acessar o sistema. Eles receberão um e-mail com um link para cadastro.</p>
-                    <button type="button" class="btn btn-primary w-100" id="btnConvidarUsuario" data-bs-toggle="modal" data-bs-target="#modalConvidarUsuario">
-                        <i class="fas fa-user-plus mr-2"></i>Convidar Novo Usuário
-                    </button>
-                </div>
-            </div>
+<!-- Card para convidar usuários -->
+<div class="col-xl-6 col-lg-6">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Convidar Usuário</h6>
+        </div>
+        <div class="card-body">
+            <p class="mb-4">Convide novos usuários para acessar o sistema. Eles receberão um e-mail com um link para cadastro.</p>
+            <button type="button" class="btn btn-primary w-100" id="btnConvidarUsuario" data-bs-toggle="modal" data-bs-target="#modalConvidarUsuario">
+                <i class="fas fa-user-plus mr-2"></i>Convidar Novo Usuário
+            </button>
         </div>
     </div>
 </div>
@@ -200,108 +199,152 @@ document.addEventListener('DOMContentLoaded', function() {
             buttonText.textContent = 'Alterar Senha';
             return;
         }
-
-        // Se passou pelas validações, envia o formulário
+        
+        // Envia o formulário via AJAX
+        const formData = new FormData(passwordForm);
         fetch(passwordForm.action, {
             method: 'POST',
-            body: new FormData(passwordForm),
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+            body: formData,
+            credentials: 'same-origin'
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Limpa os campos
+                alert('Senha alterada com sucesso!');
+                // Limpa o formulário
                 passwordForm.reset();
-                // Mostra mensagem de sucesso
-                alert(data.message);
             } else {
-                // Mostra mensagem de erro
-                alert(data.message);
+                throw new Error(data.message || 'Erro ao alterar senha');
             }
         })
         .catch(error => {
-            console.error('Erro:', error);
-            alert('Erro ao alterar senha. Por favor, tente novamente.');
+            alert('Erro: ' + error.message);
         })
         .finally(() => {
-            // Esconde o spinner e restaura o texto do botão
             loading.classList.add('d-none');
             buttonText.textContent = 'Alterar Senha';
         });
     });
 
-    // Preview da foto de perfil
-    document.getElementById('profilePhoto').addEventListener('change', function(e) {
-        if (this.files && this.files[0]) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('preview').src = e.target.result;
-            };
-            reader.readAsDataURL(this.files[0]);
-        }
+    // Manipulador para o formulário de logo e configurações
+    logoForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Mostra o spinner de carregamento
+        document.getElementById('logoLoading').classList.remove('d-none');
+        document.getElementById('logoButtonText').textContent = 'Atualizando...';
+        
+        // Envia o formulário
+        fetch(this.action, {
+            method: 'POST',
+            body: new FormData(this)
+        })
+        .then(response => {
+            if (response.redirected) {
+                // Força um recarregamento completo da página
+                window.location.reload(true);
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            document.getElementById('logoLoading').classList.add('d-none');
+            document.getElementById('logoButtonText').textContent = 'Atualizar Configurações';
+        });
     });
 
     // Manipulador para o formulário de perfil
     profileForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // Mostra o spinner de loading
-        const loading = document.getElementById('loading');
-        const buttonText = document.getElementById('buttonText');
-        loading.classList.remove('d-none');
-        buttonText.textContent = 'Atualizando...';
-
-        // Envia o formulário
-        fetch(profileForm.action, {
+        document.getElementById('loading').classList.remove('d-none');
+        document.getElementById('buttonText').textContent = 'Atualizando...';
+        
+        fetch(this.action, {
             method: 'POST',
-            body: new FormData(profileForm)
+            body: new FormData(this)
         })
         .then(response => {
-            if (response.ok) {
-                window.location.reload();
-            } else {
-                throw new Error('Erro ao atualizar foto de perfil');
+            if (response.redirected) {
+                window.location.href = response.url;
             }
         })
         .catch(error => {
             console.error('Erro:', error);
-            alert('Erro ao atualizar foto de perfil. Por favor, tente novamente.');
-            loading.classList.add('d-none');
-            buttonText.textContent = 'Atualizar Foto';
+            document.getElementById('loading').classList.add('d-none');
+            document.getElementById('buttonText').textContent = 'Atualizar Foto';
         });
     });
 
-    // Manipulador para o formulário do logo
-    logoForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Mostra o spinner de loading
-        const loading = document.getElementById('logoLoading');
-        const buttonText = document.getElementById('logoButtonText');
-        loading.classList.remove('d-none');
-        buttonText.textContent = 'Atualizando...';
+    // Manipulador para o envio do convite
+    const btnEnviarConvite = document.getElementById('btnEnviarConvite');
+    btnEnviarConvite.addEventListener('click', function() {
+        const email = document.getElementById('emailConvite').value;
+        if (!email) {
+            alert('Por favor, insira um e-mail válido.');
+            return;
+        }
 
-        // Envia o formulário
-        fetch(logoForm.action, {
+        const loading = document.getElementById('conviteLoading');
+        const buttonText = document.getElementById('conviteButtonText');
+        loading.classList.remove('d-none');
+        buttonText.textContent = 'Enviando...';
+
+        fetch('/enviar_convite', {
             method: 'POST',
-            body: new FormData(logoForm)
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: email })
         })
-        .then(response => {
-            if (response.ok) {
-                window.location.reload();
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Convite enviado com sucesso!');
+                const modalConvidarUsuario = bootstrap.Modal.getInstance(document.getElementById('modalConvidarUsuario'));
+                modalConvidarUsuario.hide();
+                document.getElementById('emailConvite').value = '';
             } else {
-                throw new Error('Erro ao atualizar configurações');
+                alert(data.message || 'Erro ao enviar convite. Tente novamente.');
             }
         })
         .catch(error => {
             console.error('Erro:', error);
-            alert('Erro ao atualizar configurações. Por favor, tente novamente.');
+            alert('Erro ao enviar convite. Tente novamente.');
+        })
+        .finally(() => {
             loading.classList.add('d-none');
-            buttonText.textContent = 'Atualizar Configurações';
+            buttonText.textContent = 'Enviar Convite';
         });
     });
 });
 </script>
+
+<!-- Modal Convidar Usuário -->
+<div class="modal fade" id="modalConvidarUsuario" tabindex="-1" aria-labelledby="modalConvidarUsuarioLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalConvidarUsuarioLabel">Convidar Novo Usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formConvidarUsuario">
+                    <div class="mb-3">
+                        <label for="emailConvite" class="form-label">E-mail do Usuário</label>
+                        <input type="email" class="form-control" id="emailConvite" required>
+                        <div class="form-text">Um e-mail com o link de convite será enviado para este endereço.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnEnviarConvite">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" id="conviteLoading"></span>
+                    <span id="conviteButtonText">Enviar Convite</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
