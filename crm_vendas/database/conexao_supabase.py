@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 import logging
-import psycopg2
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -18,12 +17,30 @@ class ConexaoSupabase:
             'host': os.getenv('DB_HOST'),
             'port': os.getenv('DB_PORT', '5432')
         }
+        self._psycopg2 = None
+
+    @property
+    def psycopg2(self):
+        if self._psycopg2 is None:
+            try:
+                import psycopg2
+                self._psycopg2 = psycopg2
+            except ImportError:
+                logger.error("Erro ao importar psycopg2")
+                raise
+        return self._psycopg2
 
     def get_connection(self):
         try:
-            return psycopg2.connect(**self.db_config)
+            # Tentar importar e usar o psycopg2
+            pg = self.psycopg2
+            conn = pg.connect(**self.db_config)
+            # Testar a conexão
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+            return conn
         except Exception as e:
-            logger.error(f"Erro na conexão: {e}")
+            logger.error(f"Erro na conexão: {str(e)}")
             return None
 
     def get_session(self):
@@ -33,5 +50,5 @@ def criar_cliente_supabase():
     try:
         return ConexaoSupabase()
     except Exception as e:
-        logger.error(f"Erro ao criar cliente: {e}")
+        logger.error(f"Erro ao criar cliente: {str(e)}")
         return None
